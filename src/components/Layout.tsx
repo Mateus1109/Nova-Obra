@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { KanbanSquare, Building2, MapPinned, BarChart3, LogOut } from "lucide-react";
+import { KanbanSquare, Building2, MapPinned, BarChart3, Users, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/utils";
 import type { ReactNode } from "react";
@@ -8,6 +8,7 @@ const nav = [
   { to: "/", label: "Funil", icon: KanbanSquare, end: true },
   { to: "/obras/nova", label: "Nova obra", icon: Building2 },
   { to: "/visitas", label: "Visitas", icon: MapPinned },
+  { to: "/vendedores", label: "Equipe", icon: Users, adminOnly: true },
   { to: "/dashboard", label: "Painel", icon: BarChart3, adminOnly: true },
 ];
 

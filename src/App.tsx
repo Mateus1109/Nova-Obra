@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Kanban from "./pages/Kanban";
 import CadastroObra from "./pages/CadastroObra";
 import Visitas from "./pages/Visitas";
+import Vendedores from "./pages/Vendedores";
 import Dashboard from "./pages/Dashboard";
 import RotaPrint from "./pages/RotaPrint";
 import { Spinner } from "./components/ui";
@@ -33,6 +34,10 @@ function Protegido() {
                 <Route path="/" element={<Kanban />} />
                 <Route path="/obras/nova" element={<CadastroObra />} />
                 <Route path="/visitas" element={<Visitas />} />
+                <Route
+                  path="/vendedores"
+                  element={isAdmin ? <Vendedores /> : <Navigate to="/" replace />}
+                />
                 <Route
                   path="/dashboard"
                   element={isAdmin ? <Dashboard /> : <Navigate to="/" replace />}
