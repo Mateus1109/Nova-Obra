@@ -142,3 +142,57 @@ export const STATUS_VISITA_LABEL: Record<StatusVisita, string> = {
   remarcada: "Remarcada",
   cancelada: "Cancelada",
 };
+
+// ---------- Relatórios de visita ----------
+export type TipoRelatorio = "cliente" | "aquisicao";
+export type ResultadoVisita =
+  | "pedido_fechado"
+  | "proposta_solicitada"
+  | "em_negociacao"
+  | "retornar"
+  | "sem_interesse";
+
+export interface RelatorioVisita {
+  id: string;
+  vendedor_id: string;
+  obra_id: string | null;
+  oportunidade_id: string | null;
+  tipo: TipoRelatorio;
+  nome_obra: string;
+  construtora: string;
+  contato_nome: string;
+  contato_cargo: string;
+  contato_telefone: string;
+  bairro: string;
+  endereco: string;
+  latitude: number | null;
+  longitude: number | null;
+  data_visita: string;
+  hora_inicio: string | null;
+  hora_fim: string | null;
+  objetivo: string;
+  resumo: string;
+  resultado: ResultadoVisita;
+  interesse: Classificacao;
+  produto_interesse: ProdutoAlvo | null;
+  volume_estimado_m3: number | null;
+  concorrente: string;
+  proximo_passo: string;
+  data_retorno: string | null;
+  fotos: string[];
+  criado_em: string;
+  vendedor?: { nome: string } | null;
+}
+
+export const TIPO_RELATORIO: Record<TipoRelatorio, { label: string; curto: string; bg: string; fg: string }> = {
+  cliente: { label: "Visita a cliente", curto: "Cliente", bg: "#dcfce7", fg: "#15803d" },
+  aquisicao: { label: "Aquisição de nova obra", curto: "Nova obra", bg: "#dbeafe", fg: "#1d4ed8" },
+};
+
+export const RESULTADO_VISITA: Record<ResultadoVisita, { label: string; bg: string; fg: string }> = {
+  pedido_fechado: { label: "Pedido fechado", bg: "#dcfce7", fg: "#15803d" },
+  proposta_solicitada: { label: "Proposta solicitada", bg: "#ede9fe", fg: "#6d28d9" },
+  em_negociacao: { label: "Em negociação", bg: "#dbeafe", fg: "#1d4ed8" },
+  retornar: { label: "Retornar depois", bg: "#fef3c7", fg: "#b45309" },
+  sem_interesse: { label: "Sem interesse", bg: "#fee2e2", fg: "#b91c1c" },
+};

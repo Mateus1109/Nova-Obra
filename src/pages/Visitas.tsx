@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Navigation,
   Route as RouteIcon,
@@ -6,6 +7,7 @@ import {
   Plus,
   CalendarDays,
   CheckCircle2,
+  ClipboardList,
 } from "lucide-react";
 import { useData } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
@@ -207,13 +209,18 @@ function VisitaItem({
         </div>
       </div>
 
-      {(alterado || salvo) && (
-        <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
+        <Link to={`/relatorios?obra=${o.id}`}>
+          <Button size="sm" variant="secondary">
+            <ClipboardList size={15} /> Registrar relatório
+          </Button>
+        </Link>
+        {(alterado || salvo) && (
           <Button size="sm" variant={salvo ? "success" : "primary"} onClick={salvar}>
             {salvo ? <><CheckCircle2 size={15} /> Salvo</> : "Salvar atualização"}
           </Button>
-        </div>
-      )}
+        )}
+      </div>
     </Card>
   );
 }

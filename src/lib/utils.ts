@@ -14,7 +14,27 @@ export const dataBR = (iso: string | null | undefined) => {
   return d.toLocaleDateString("pt-BR");
 };
 
-export const hojeISO = () => new Date().toISOString().slice(0, 10);
+// Data local (yyyy-mm-dd) — evita que à noite o "hoje" vire o dia seguinte por causa do UTC
+export const isoLocal = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+export const hojeISO = () => isoLocal(new Date());
+
+// Reduz a foto para no máx. 1600px e JPEG ~75% antes do upload (economiza dados no campo)
+export async function comprimirImagem(file: File, max = 1600, qualidade = 0.75): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const escala = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bmp.width * escala);
+    canvas.height = Math.round(bmp.height * escala);
+    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close();
+    return await new Promise((ok) => canvas.toBlob((b) => ok(b ?? file), "image/jpeg", qualidade));
+  } catch {
+    return file;
+  }
+}
 
 export const diasDesde = (iso: string | null | undefined) => {
   if (!iso) return 0;

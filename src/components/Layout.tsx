@@ -1,15 +1,16 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { KanbanSquare, Building2, MapPinned, BarChart3, Users, LogOut } from "lucide-react";
+import { KanbanSquare, Building2, MapPinned, BarChart3, Users, ClipboardList, LogOut } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/utils";
 import type { ReactNode } from "react";
 
 const nav = [
-  { to: "/", label: "Funil", icon: KanbanSquare, end: true },
-  { to: "/obras/nova", label: "Nova obra", icon: Building2 },
-  { to: "/visitas", label: "Visitas", icon: MapPinned },
-  { to: "/vendedores", label: "Equipe", icon: Users, adminOnly: true },
-  { to: "/dashboard", label: "Painel", icon: BarChart3, adminOnly: true },
+  { to: "/", label: "Funil", curto: "Funil", icon: KanbanSquare, end: true },
+  { to: "/obras/nova", label: "Nova obra", curto: "Obra", icon: Building2 },
+  { to: "/visitas", label: "Visitas do dia", curto: "Visitas", icon: MapPinned },
+  { to: "/relatorios", label: "Relatórios de visita", curto: "Relatórios", icon: ClipboardList },
+  { to: "/vendedores", label: "Equipe", curto: "Equipe", icon: Users, adminOnly: true },
+  { to: "/dashboard", label: "Painel", curto: "Painel", icon: BarChart3, adminOnly: true },
 ];
 
 function Logo({ compact }: { compact?: boolean }) {
@@ -93,12 +94,12 @@ export default function Layout({ children }: { children: ReactNode }) {
               to={n.to}
               end={n.end}
               className={cx(
-                "flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-semibold",
+                "flex min-w-0 flex-1 flex-col items-center gap-0.5 whitespace-nowrap py-2.5 text-[10px] font-semibold",
                 active ? "text-aco-600" : "text-slate-400"
               )}
             >
               <n.icon size={21} />
-              {n.label}
+              {n.curto}
             </NavLink>
           );
         })}
