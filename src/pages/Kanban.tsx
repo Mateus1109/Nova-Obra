@@ -9,7 +9,14 @@ import {
   useDroppable,
   type DragEndEvent,
 } from "@dnd-kit/core";
-import { MapPin, Navigation, Search, GripVertical, Flame } from "lucide-react";
+import {
+  MapPin,
+  Navigation,
+  Search,
+  Flame,
+  LayoutGrid,
+  List as ListIcon,
+} from "lucide-react";
 import { useData, type Card as TCard } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import {
@@ -23,17 +30,23 @@ import {
 import { brl, cx, dataBR, mapsLink } from "@/lib/utils";
 import { Badge, Button, Field, Input, Modal, Select, Spinner } from "@/components/ui";
 
+type Vista = "quadro" | "lista";
+
 export default function Kanban() {
   const { cards, vendedores, loading, moverEtapa, setClassificacao } = useData();
   const { isAdmin } = useAuth();
 
+  const [vista, setVista] = useState<Vista>("quadro");
   const [busca, setBusca] = useState("");
   const [fVendedor, setFVendedor] = useState("");
   const [fBairro, setFBairro] = useState("");
   const [fStatus, setFStatus] = useState("");
   const [fClass, setFClass] = useState("");
-  const [detalhe, setDetalhe] = useState<TCard | null>(null);
+  const [detalheId, setDetalheId] = useState<string | null>(null);
   const [pendente, setPendente] = useState<{ card: TCard; etapa: Etapa } | null>(null);
+
+  // card "ao vivo" (reflete alterações de classificação/etapa em tempo real)
+  const detalhe = detalheId ? cards.find((c) => c.id === detalheId) ?? null : null;
 
   const bairros = useMemo(
     () => Array.from(new Set(cards.map((c) => c.obra?.bairro).filter(Boolean))).sort(),
@@ -56,8 +69,8 @@ export default function Kanban() {
   );
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
   function onDragEnd(e: DragEndEvent) {
@@ -85,6 +98,27 @@ export default function Kanban() {
           <p className="text-sm text-slate-500">
             {filtrados.length} oportunidades · {brl(totalValor)} em potencial
           </p>
+        </div>
+        {/* Alternância de vista */}
+        <div className="flex rounded-xl border border-slate-200 bg-white p-1">
+          <button
+            onClick={() => setVista("quadro")}
+            className={cx(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
+              vista === "quadro" ? "bg-marinho-700 text-white" : "text-slate-500 hover:text-marinho-700"
+            )}
+          >
+            <LayoutGrid size={16} /> Quadro
+          </button>
+          <button
+            onClick={() => setVista("lista")}
+            className={cx(
+              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
+              vista === "lista" ? "bg-marinho-700 text-white" : "text-slate-500 hover:text-marinho-700"
+            )}
+          >
+            <ListIcon size={16} /> Lista
+          </button>
         </div>
       </header>
 
@@ -124,24 +158,36 @@ export default function Kanban() {
         </Select>
       </div>
 
-      {/* Board */}
-      <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-        <div className="flex gap-4 overflow-x-auto pb-4">
-          {ETAPAS.map((et) => (
-            <Coluna
-              key={et.key}
-              etapa={et}
-              cards={filtrados.filter((c) => c.etapa === et.key)}
-              onOpen={setDetalhe}
-            />
-          ))}
-        </div>
-      </DndContext>
+      {vista === "quadro" ? (
+        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+          <div className="flex gap-4 overflow-x-auto pb-4">
+            {ETAPAS.map((et) => (
+              <Coluna
+                key={et.key}
+                etapa={et}
+                cards={filtrados.filter((c) => c.etapa === et.key)}
+                onOpen={setDetalheId}
+              />
+            ))}
+          </div>
+        </DndContext>
+      ) : (
+        <ListaView
+          cards={filtrados}
+          isAdmin={isAdmin}
+          onOpen={setDetalheId}
+          onEtapa={(c, etapa) => {
+            if (etapa === "perdido" || etapa === "ganho") setPendente({ card: c, etapa });
+            else moverEtapa(c.id, etapa);
+          }}
+          onClass={(id, cl) => setClassificacao(id, cl)}
+        />
+      )}
 
       {detalhe && (
         <DetalheModal
           card={detalhe}
-          onClose={() => setDetalhe(null)}
+          onClose={() => setDetalheId(null)}
           onClass={(c) => setClassificacao(detalhe.id, c)}
         />
       )}
@@ -160,6 +206,8 @@ export default function Kanban() {
   );
 }
 
+/* ---------------- QUADRO (kanban) ---------------- */
+
 function Coluna({
   etapa,
   cards,
@@ -167,7 +215,7 @@ function Coluna({
 }: {
   etapa: (typeof ETAPAS)[number];
   cards: TCard[];
-  onOpen: (c: TCard) => void;
+  onOpen: (id: string) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: etapa.key });
   const soma = cards.reduce((s, c) => s + (c.valor_estimado || 0), 0);
@@ -177,9 +225,7 @@ function Coluna({
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full" style={{ background: etapa.cor }} />
           <span className="font-bold text-marinho-800">{etapa.label}</span>
-          <span className="rounded-full bg-slate-200 px-2 text-xs font-bold text-slate-600">
-            {cards.length}
-          </span>
+          <span className="rounded-full bg-slate-200 px-2 text-xs font-bold text-slate-600">{cards.length}</span>
         </div>
       </div>
       <div
@@ -196,44 +242,40 @@ function Coluna({
           <p className="px-2 py-6 text-center text-xs text-slate-400">Arraste cards para cá</p>
         )}
         {soma > 0 && (
-          <p className="mt-auto px-1 pt-1 text-[11px] font-semibold text-slate-400">
-            {brl(soma)}
-          </p>
+          <p className="mt-auto px-1 pt-1 text-[11px] font-semibold text-slate-400">{brl(soma)}</p>
         )}
       </div>
     </div>
   );
 }
 
-function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (c: TCard) => void }) {
+function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
   const cl = CLASSIFICACOES[card.classificacao];
   const style = transform
     ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 }
     : undefined;
 
+  // card inteiro arrastável; clique (sem arrastar) abre os detalhes
+  const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
+
   return (
     <div
       ref={setNodeRef}
       style={style}
+      {...listeners}
+      {...attributes}
+      onClick={() => onOpen(card.id)}
       className={cx(
-        "group rounded-xl border border-slate-100 bg-white p-3 shadow-card",
+        "group cursor-grab touch-none select-none rounded-xl border border-slate-100 bg-white p-3 shadow-card active:cursor-grabbing",
         isDragging && "opacity-60 shadow-cardhover"
       )}
     >
       <div className="flex items-start gap-1.5">
-        <button
-          {...attributes}
-          {...listeners}
-          className="mt-0.5 cursor-grab text-slate-300 hover:text-slate-500 active:cursor-grabbing"
-          aria-label="Arrastar"
-        >
-          <GripVertical size={16} />
-        </button>
-        <button onClick={() => onOpen(card)} className="min-w-0 flex-1 text-left">
+        <div className="min-w-0 flex-1">
           <p className="truncate font-bold text-marinho-800">{card.obra?.nome_obra}</p>
           <p className="truncate text-xs text-slate-500">{card.obra?.construtora}</p>
-        </button>
+        </div>
         <Badge bg={cl.bg} fg={cl.fg}>{cl.label}</Badge>
       </div>
 
@@ -246,9 +288,7 @@ function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (c: TCard) => void 
       <div className="mt-2 flex items-center justify-between">
         <span className="font-bold text-marinho-700">{brl(card.valor_estimado)}</span>
         {card.proxima_etapa_data && (
-          <span className="text-[11px] font-medium text-slate-400">
-            próx. {dataBR(card.proxima_etapa_data)}
-          </span>
+          <span className="text-[11px] font-medium text-slate-400">próx. {dataBR(card.proxima_etapa_data)}</span>
         )}
       </div>
 
@@ -260,7 +300,8 @@ function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (c: TCard) => void 
           href={mapsLink(card.obra?.latitude, card.obra?.longitude, card.obra?.endereco)}
           target="_blank"
           rel="noreferrer"
-          onClick={(e) => e.stopPropagation()}
+          onPointerDown={stop}
+          onClick={stop}
           className="flex items-center gap-1 rounded-lg bg-aco-50 px-2 py-1 text-[11px] font-bold text-aco-600 hover:bg-aco-100"
         >
           <Navigation size={12} /> Rota
@@ -269,6 +310,109 @@ function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (c: TCard) => void 
     </div>
   );
 }
+
+/* ---------------- LISTA ---------------- */
+
+function ListaView({
+  cards,
+  isAdmin,
+  onOpen,
+  onEtapa,
+  onClass,
+}: {
+  cards: TCard[];
+  isAdmin: boolean;
+  onOpen: (id: string) => void;
+  onEtapa: (c: TCard, etapa: Etapa) => void;
+  onClass: (id: string, cl: Classificacao) => void;
+}) {
+  if (cards.length === 0)
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-white/50 p-10 text-center text-sm text-slate-500">
+        Nenhuma oportunidade com os filtros atuais.
+      </div>
+    );
+
+  const proxCl: Record<Classificacao, Classificacao> = { frio: "morno", morno: "quente", quente: "frio" };
+
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-card">
+      {/* Cabeçalho (desktop) */}
+      <div className="hidden grid-cols-12 gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-400 lg:grid">
+        <div className="col-span-3">Obra</div>
+        <div className="col-span-2">Vendedor</div>
+        <div className="col-span-2">Etapa</div>
+        <div className="col-span-1">Classif.</div>
+        <div className="col-span-2 text-right">Valor</div>
+        <div className="col-span-2 text-right">Ações</div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {cards.map((c) => {
+          const cl = CLASSIFICACOES[c.classificacao];
+          return (
+            <div key={c.id} className="grid grid-cols-2 items-center gap-2 px-4 py-3 lg:grid-cols-12">
+              <div className="col-span-2 lg:col-span-3">
+                <button onClick={() => onOpen(c.id)} className="text-left">
+                  <p className="font-bold text-marinho-800 hover:text-aco-600">{c.obra?.nome_obra}</p>
+                  <p className="text-xs text-slate-500">{c.obra?.construtora} · {c.obra?.bairro}</p>
+                </button>
+              </div>
+
+              <div className="lg:col-span-2">
+                <p className="text-xs font-bold uppercase text-slate-400 lg:hidden">Vendedor</p>
+                <p className="truncate text-sm text-marinho-800">{c.vendedor?.nome ?? "—"}</p>
+              </div>
+
+              <div className="lg:col-span-2">
+                <Select
+                  value={c.etapa}
+                  onChange={(e) => onEtapa(c, e.target.value as Etapa)}
+                  className="py-1.5 text-sm"
+                >
+                  {ETAPAS.map((et) => (<option key={et.key} value={et.key}>{et.label}</option>))}
+                </Select>
+              </div>
+
+              <div className="lg:col-span-1">
+                <button
+                  onClick={() => onClass(c.id, proxCl[c.classificacao])}
+                  title="Clique para alternar a classificação"
+                  className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                  style={{ background: cl.bg, color: cl.fg }}
+                >
+                  {cl.label}
+                </button>
+              </div>
+
+              <div className="text-right lg:col-span-2">
+                <span className="font-bold text-marinho-700">{brl(c.valor_estimado)}</span>
+              </div>
+
+              <div className="col-span-2 flex justify-end gap-2 lg:col-span-2">
+                <a
+                  href={mapsLink(c.obra?.latitude, c.obra?.longitude, c.obra?.endereco)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 rounded-lg bg-aco-50 px-2.5 py-1.5 text-xs font-bold text-aco-600 hover:bg-aco-100"
+                >
+                  <Navigation size={13} /> Maps
+                </a>
+                <button
+                  onClick={() => onOpen(c.id)}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-marinho-700 hover:bg-slate-50"
+                >
+                  Detalhes
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- MODAL DETALHE ---------------- */
 
 function DetalheModal({
   card,
@@ -319,7 +463,7 @@ function DetalheModal({
               onClick={() => onClass(c)}
               className={cx(
                 "flex-1 rounded-xl border-2 py-2 text-sm font-bold capitalize transition",
-                card.classificacao === c ? "border-aco-500" : "border-transparent"
+                card.classificacao === c ? "border-marinho-700 ring-2 ring-marinho-700/20" : "border-transparent"
               )}
               style={{ background: CLASSIFICACOES[c].bg, color: CLASSIFICACOES[c].fg }}
             >
@@ -367,7 +511,7 @@ function ConfirmarEtapa({
   const [concorrente, setConcorrente] = useState("");
 
   return (
-    <Modal open onClose={onClose} title={ganho ? "Marcar como Ganho 🎉" : "Marcar como Perdido"}>
+    <Modal open onClose={onClose} title={ganho ? "Marcar como Ganho" : "Marcar como Perdido"}>
       {ganho ? (
         <Field label="Valor fechado (R$)">
           <Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} />
