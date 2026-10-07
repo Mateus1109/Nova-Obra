@@ -49,6 +49,9 @@ const MAX_FOTOS = 10;
 
 const ROTULO_PERIODO = { "7": "Últimos 7 dias", "30": "Últimos 30 dias", mes: "Este mês", todos: "Todo o período" };
 
+// "Novo cliente" fica só para relatórios antigos; o vendedor escolhe entre estes dois
+const TIPOS_VISITA: TipoRelatorio[] = ["cliente", "aquisicao"];
+
 const ICONE_TIPO: Record<TipoRelatorio, typeof Handshake> = {
   cliente: Handshake,
   novo_cliente: UserPlus,
@@ -231,10 +234,9 @@ export default function Relatorios() {
       </header>
 
       {/* KPIs */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Kpi label="Visitas" valor={kpi.total} cor="#173A5E" icon={<ClipboardList size={18} />} />
         <Kpi label="Visita a cliente" valor={kpi.clientes} cor="#16a34a" icon={<Handshake size={18} />} />
-        <Kpi label="Novo cliente" valor={kpi.novos} cor="#d97706" icon={<UserPlus size={18} />} />
         <Kpi label="Nova obra" valor={kpi.aquisicao} cor="#2E78A8" icon={<Building2 size={18} />} />
         <Kpi label="Pedidos fechados" valor={kpi.pedidos} cor="#7c3aed" icon={<Trophy size={18} />} />
         <Kpi label="Fotos" valor={kpi.fotos} cor="#64748b" icon={<Images size={18} />} />
@@ -265,7 +267,7 @@ export default function Relatorios() {
         )}
         <Select value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
           <option value="">Todos os tipos</option>
-          {(Object.keys(TIPO_RELATORIO) as TipoRelatorio[]).map((t) => (
+          {TIPOS_VISITA.map((t) => (
             <option key={t} value={t}>{TIPO_RELATORIO[t].label}</option>
           ))}
         </Select>
@@ -291,7 +293,6 @@ export default function Relatorios() {
                   <th className="px-4 py-2">Vendedor</th>
                   <th className="px-3 py-2 text-center">Visitas</th>
                   <th className="px-3 py-2 text-center">Clientes</th>
-                  <th className="px-3 py-2 text-center">Novos</th>
                   <th className="px-3 py-2 text-center">Novas obras</th>
                   <th className="px-3 py-2 text-center">Pedidos</th>
                   <th className="px-4 py-2 text-right">Último relatório</th>
@@ -307,7 +308,6 @@ export default function Relatorios() {
                     <td className="px-4 py-2.5 font-semibold text-marinho-800">{r.nome}</td>
                     <td className="px-3 py-2.5 text-center font-bold text-marinho-700">{r.total}</td>
                     <td className="px-3 py-2.5 text-center">{r.clientes}</td>
-                    <td className="px-3 py-2.5 text-center">{r.novos}</td>
                     <td className="px-3 py-2.5 text-center">{r.aquisicao}</td>
                     <td className="px-3 py-2.5 text-center">{r.pedidos}</td>
                     <td
@@ -363,11 +363,6 @@ export default function Relatorios() {
                   <div className="min-w-0 flex-1 p-3">
                     <div className="flex items-start justify-between gap-2">
                       <p className="truncate font-bold text-marinho-800">{r.nome_obra}</p>
-                      <span
-                        className="mt-1 h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                        title={`Interesse ${CLASSIFICACOES[r.interesse].label}`}
-                        style={{ background: CLASSIFICACOES[r.interesse].fg }}
-                      />
                     </div>
                     <p className="truncate text-xs text-slate-500">
                       {[r.construtora, r.bairro].filter(Boolean).join(" · ") || "—"}
@@ -483,7 +478,10 @@ function NovoRelatorio({
   const { obras, vendedores } = useData();
 
   const [tipo, setTipo] = useState<TipoRelatorio>(obraInicial ? "cliente" : "aquisicao");
-  const [vendedorId, setVendedorId] = useState(isAdmin ? "" : profile?.id ?? "");
+  const [vendedorId, setVendedorId] = useState(profile?.id ?? "");
+  const [buscaObra, setBuscaObra] = useState("");
+  const [listaAberta, setListaAberta] = useState(false);
+  const [obraNova, setObraNova] = useState(false);
   const [obraId, setObraId] = useState(obraInicial?.id ?? "");
   const [nomeObra, setNomeObra] = useState("");
   const [construtora, setConstrutora] = useState("");
@@ -493,7 +491,7 @@ function NovoRelatorio({
   const [lugar, setLugar] = useState<{ endereco: string; bairro: string } | null>(null);
   const [fase, setFase] = useState<FaseObra | "">(obraInicial?.fase_obra ?? "");
   const [resultado, setResultado] = useState<ResultadoVisita>("em_negociacao");
-  const [interesse, setInteresse] = useState<Classificacao>("morno");
+  const interesse: Classificacao = "morno"; // campo mantido no banco, não é mais perguntado
   const [noFunil, setNoFunil] = useState(true);
   const [mais, setMais] = useState(false);
   const [contato, setContato] = useState(obraInicial?.contato_nome ?? "");
@@ -561,8 +559,8 @@ function NovoRelatorio({
     setErro(null);
     const uid = session?.user.id;
     if (!uid) return setErro("Sessão expirada. Entre novamente.");
-    if (isAdmin && !vendedorId) return setErro("Selecione o vendedor que fez a visita.");
-    if (!obraId && !nomeObra.trim()) return setErro("Escolha a obra ou digite o nome dela.");
+    if (!obraId && !nomeObra.trim())
+      return setErro(obraNova ? "Digite o nome da obra nova." : "Pesquise e escolha a obra, ou cadastre uma nova.");
 
     const responsavel = vendedorId || uid;
     const id = crypto.randomUUID();
@@ -721,8 +719,8 @@ function NovoRelatorio({
         {/* Tipo */}
         <div>
           <p className="mb-2 text-sm font-bold text-marinho-800">Tipo de visita</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(Object.keys(TIPO_RELATORIO) as TipoRelatorio[]).map((t) => {
+          <div className="grid grid-cols-2 gap-2">
+            {TIPOS_VISITA.map((t) => {
               const Icone = ICONE_TIPO[t];
               return (
                 <button
@@ -742,30 +740,111 @@ function NovoRelatorio({
           </div>
         </div>
 
-        {isAdmin && (
-          <Field label="Vendedor que fez a visita">
+        {isAdmin && vendedores.some((v) => v.id !== profile?.id) && (
+          <Field label="Vendedor">
             <Select value={vendedorId} onChange={(e) => setVendedorId(e.target.value)}>
-              <option value="">Selecione...</option>
-              {vendedores.map((v) => (<option key={v.id} value={v.id}>{v.nome}</option>))}
+              {profile && <option value={profile.id}>{profile.nome} (eu)</option>}
+              {vendedores
+                .filter((v) => v.id !== profile?.id)
+                .map((v) => (<option key={v.id} value={v.id}>{v.nome}</option>))}
             </Select>
           </Field>
         )}
 
         {/* Obra */}
         <div className="space-y-3">
-          <Field label={tipo === "aquisicao" ? "Obra" : "Obra / cliente"}>
-            <Select value={obraId} onChange={(e) => escolherObra(e.target.value)}>
-              <option value="">{tipo === "aquisicao" ? "+ Obra nova (digitar abaixo)" : "+ Novo (digitar abaixo)"}</option>
-              {obrasOrdenadas.map((o) => (
-                <option key={o.id} value={o.id}>{o.nome_obra}{o.bairro ? ` — ${o.bairro}` : ""}</option>
-              ))}
-            </Select>
-          </Field>
-          {!obraId && (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Input placeholder={tipo === "aquisicao" ? "Nome da obra *" : "Nome da obra / cliente *"} value={nomeObra} onChange={(e) => setNomeObra(e.target.value)} />
-              <Input placeholder="Construtora" value={construtora} onChange={(e) => setConstrutora(e.target.value)} />
-              <Input placeholder="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
+          <p className="text-sm font-bold text-marinho-800">Obra</p>
+          {obraVinculada ? (
+            <div className="flex items-center gap-3 rounded-xl border-2 border-aco-500 bg-aco-50 px-3 py-2.5">
+              <Building2 size={18} className="flex-shrink-0 text-aco-600" />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-marinho-800">{obraVinculada.nome_obra}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {[obraVinculada.construtora, obraVinculada.bairro].filter(Boolean).join(" · ") || "—"}
+                </p>
+              </div>
+              <button type="button" onClick={() => escolherObra("")} className="text-sm font-semibold text-aco-600">
+                Trocar
+              </button>
+            </div>
+          ) : obraNova ? (
+            <div className="space-y-2 rounded-xl border border-slate-200 p-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Obra nova</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setObraNova(false);
+                    setNomeObra("");
+                  }}
+                  className="text-xs font-semibold text-aco-600"
+                >
+                  Buscar obra cadastrada
+                </button>
+              </div>
+              <Input autoFocus placeholder="Nome da obra *" value={nomeObra} onChange={(e) => setNomeObra(e.target.value)} />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Input placeholder="Construtora / cliente" value={construtora} onChange={(e) => setConstrutora(e.target.value)} />
+                <Input placeholder={lugar?.bairro ? `Bairro (GPS: ${lugar.bairro})` : "Bairro"} value={bairro} onChange={(e) => setBairro(e.target.value)} />
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <Input
+                value={buscaObra}
+                onChange={(e) => {
+                  setBuscaObra(e.target.value);
+                  setListaAberta(true);
+                }}
+                onFocus={() => setListaAberta(true)}
+                onBlur={() => setTimeout(() => setListaAberta(false), 150)}
+                placeholder="Pesquisar obra, construtora ou bairro..."
+                className="pl-9"
+              />
+              {listaAberta && (
+                <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-cardhover">
+                  {obrasOrdenadas
+                    .filter((o) =>
+                      !buscaObra ||
+                      `${o.nome_obra} ${o.construtora} ${o.bairro}`.toLowerCase().includes(buscaObra.toLowerCase())
+                    )
+                    .slice(0, 8)
+                    .map((o) => (
+                      <button
+                        key={o.id}
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          escolherObra(o.id);
+                          setBuscaObra("");
+                          setListaAberta(false);
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50"
+                      >
+                        <Building2 size={15} className="flex-shrink-0 text-slate-400" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-marinho-800">{o.nome_obra}</span>
+                          <span className="block truncate text-xs text-slate-500">
+                            {[o.construtora, o.bairro].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      setObraNova(true);
+                      setNomeObra(buscaObra.trim());
+                      setListaAberta(false);
+                    }}
+                    className="flex w-full items-center gap-2 border-t border-slate-100 px-3 py-2.5 text-left text-sm font-semibold text-aco-600 hover:bg-aco-50"
+                  >
+                    <Plus size={16} /> Cadastrar obra nova{buscaObra.trim() ? ` “${buscaObra.trim()}”` : ""}
+                  </button>
+                </div>
+              )}
             </div>
           )}
           <p
@@ -808,19 +887,7 @@ function NovoRelatorio({
           </div>
         </div>
 
-        {/* Interesse */}
-        <div>
-          <p className="mb-2 text-sm font-bold text-marinho-800">Interesse</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(["frio", "morno", "quente"] as Classificacao[]).map((c) => (
-              <Chip key={c} ativo={interesse === c} onClick={() => setInteresse(c)} cor={CLASSIFICACOES[c]}>
-                {CLASSIFICACOES[c].label}
-              </Chip>
-            ))}
-          </div>
-        </div>
-
-        {!obraId && tipo === "aquisicao" && podeCadastrar && (
+        {obraNova && !obraId && tipo === "aquisicao" && podeCadastrar && (
           <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-aco-50 p-3">
             <input
               type="checkbox"
@@ -982,9 +1049,6 @@ function DetalheRelatorio({
       <div className="mb-4 flex flex-wrap gap-2">
         <Badge bg={tp.bg} fg={tp.fg}>{tp.label}</Badge>
         <Badge bg={rs.bg} fg={rs.fg}>{rs.label}</Badge>
-        <Badge bg={CLASSIFICACOES[r.interesse].bg} fg={CLASSIFICACOES[r.interesse].fg}>
-          Interesse {CLASSIFICACOES[r.interesse].label.toLowerCase()}
-        </Badge>
         {r.fase_obra && <Badge>Fase: {FASE_LABEL[r.fase_obra]}</Badge>}
         {r.oportunidade_id && <Badge bg="#e0f2fe" fg="#0369a1">No funil</Badge>}
       </div>
@@ -1083,7 +1147,7 @@ function Info({ label, valor }: { label: string; valor?: string | null }) {
 function exportarCSV(rows: RelatorioVisita[]) {
   const cab = [
     "Data", "Hora", "Vendedor", "Tipo", "Obra", "Construtora/cliente", "Bairro", "Fase da obra", "Resultado",
-    "Interesse", "Contato", "Telefone", "Volume (m³)", "Fornecedor atual", "Observação", "Qtd. fotos",
+    "Contato", "Telefone", "Volume (m³)", "Fornecedor atual", "Observação", "Qtd. fotos",
     "GPS", "No funil",
   ];
   const esc = (v: unknown) => {
@@ -1101,7 +1165,6 @@ function exportarCSV(rows: RelatorioVisita[]) {
       r.bairro,
       r.fase_obra ? FASE_LABEL[r.fase_obra] : "",
       RESULTADO_VISITA[r.resultado].label,
-      CLASSIFICACOES[r.interesse].label,
       r.contato_nome,
       r.contato_telefone,
       r.volume_estimado_m3 || "",

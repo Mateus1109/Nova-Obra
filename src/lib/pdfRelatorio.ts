@@ -141,11 +141,10 @@ function resumo(doc: JsPDF, rows: RelatorioVisita[], y: number) {
   const itens: [string, number, [number, number, number]][] = [
     ["Visitas", rows.length, MARINHO],
     ["Visita a cliente", conta("cliente"), hex(TIPO_RELATORIO.cliente.fg)],
-    ["Novo cliente", conta("novo_cliente"), hex(TIPO_RELATORIO.novo_cliente.fg)],
     ["Nova obra", conta("aquisicao"), hex(TIPO_RELATORIO.aquisicao.fg)],
     ["Pedidos fechados", rows.filter((r) => r.resultado === "pedido_fechado").length, [180, 83, 9]],
   ];
-  const w = (LARG - 4 * 3) / 5;
+  const w = (LARG - (itens.length - 1) * 3) / itens.length;
   itens.forEach(([label, n, cor], i) => {
     const x = M + i * (w + 3);
     doc.setFillColor(248, 250, 252);
@@ -172,7 +171,6 @@ function linhas(r: RelatorioVisita): [string, string][] {
     ["Construtora / cliente", r.construtora],
     ["Local", local],
     ["Resultado", RESULTADO_VISITA[r.resultado]?.label ?? ""],
-    ["Interesse", CLASSIFICACOES[r.interesse]?.label ?? ""],
     ["Fase da obra", r.fase_obra ? FASE_LABEL[r.fase_obra] : ""],
     ["Contato", contato],
     ["Fornecedor atual", r.concorrente],
