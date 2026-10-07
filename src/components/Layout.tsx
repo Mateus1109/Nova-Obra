@@ -33,7 +33,6 @@ const nav: {
   { to: "/pipelines", label: "Pipelines", icon: Filter },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/relatorios", label: "Relatórios de visita", icon: ClipboardList },
-  { to: "/obras/nova", label: "Nova obra", icon: Building2, perm: "cadastrar_obras" },
   { to: "/dashboard", label: "Painel", icon: BarChart3, perm: "ver_painel" },
   { to: "/equipe", label: "Equipe e acessos", icon: UserCog, adminOnly: true },
 ];

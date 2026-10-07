@@ -49,12 +49,6 @@ interface DataCtx {
   atualizarEtapa: (id: string, mudanca: Partial<Etapa>) => Promise<void>;
   moverColuna: (id: string, direcao: -1 | 1) => Promise<void>;
   excluirEtapa: (id: string, destinoId: string | null) => Promise<void>;
-  criarObra: (
-    o: Partial<Obra>,
-    vendedorId: string,
-    valorEstimado: number,
-    classificacao: Classificacao
-  ) => Promise<{ error: string | null }>;
 }
 
 const Ctx = createContext<DataCtx>(null!);
@@ -406,20 +400,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const criarObra: DataCtx["criarObra"] = async (o, vendedorId, valorEstimado, classificacao) => {
-    const payload = { ...o, criado_por: profile?.id ?? null };
-    const { data: obra, error } = await supabase.from("obras").insert(payload).select().single();
-    if (error || !obra) return { error: error?.message ?? "Erro ao salvar a obra." };
-    const { error: e2 } = await supabase.from("oportunidades").insert({
-      obra_id: obra.id,
-      vendedor_id: vendedorId || profile?.id,
-      classificacao,
-      valor_estimado: valorEstimado,
-    });
-    if (e2) return { error: e2.message };
-    await recarregar();
-    return { error: null };
-  };
+
 
   return (
     <Ctx.Provider
@@ -443,7 +424,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         atualizarEtapa,
         moverColuna,
         excluirEtapa,
-        criarObra,
         criarPipeline,
         atualizarPipeline,
         excluirPipeline,

@@ -4,7 +4,6 @@ import { DataProvider } from "./lib/data";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Kanban from "./pages/Kanban";
-import CadastroObra from "./pages/CadastroObra";
 import Vendedores from "./pages/Vendedores";
 import Aguardando from "./pages/Aguardando";
 import Leads from "./pages/Leads";
@@ -34,10 +33,6 @@ function Protegido() {
                 <Route path="/" element={<Navigate to="/pipelines" replace />} />
                 <Route path="/pipelines/:pipelineId?" element={<Kanban />} />
                 <Route path="/leads" element={<Leads />} />
-                <Route
-                  path="/obras/nova"
-                  element={pode("cadastrar_obras") ? <CadastroObra /> : <Navigate to="/" replace />}
-                />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route
                   path="/equipe"
