@@ -295,9 +295,9 @@ export default function Dashboard() {
     useData();
   const { profile, isAdmin, pode } = useAuth();
   const navigate = useNavigate();
-  const verEquipe = isAdmin || pode("ver_todas_obras");
-
   const [aba, setAba] = useState<Aba>("negocios");
+  // visitas seguem a permissão dos relatórios (a mesma regra do banco); negócios e atividades, a das obras
+  const verEquipe = isAdmin || pode(aba === "visitas" ? "ver_relatorios_equipe" : "ver_todas_obras");
   const [periodo, setPeriodo] = useState<Periodo>(() => periodoDoAtalho("7d"));
   const [pipelineId, setPipelineId] = useState("");
   const [atendente, setAtendente] = useState("");
@@ -347,7 +347,8 @@ export default function Dashboard() {
     return m;
   }, [atendentes]);
 
-  const filtroAtendente = verEquipe ? atendente : "";
+  // "Sem atendente" só existe na aba Negócios
+  const filtroAtendente = !verEquipe || (atendente === SEM && aba !== "negocios") ? "" : atendente;
   const doPipeline = (etapaId: string) => !pipelineId || etapaPorId.get(etapaId)?.pipeline_id === pipelineId;
   const doAtendente = (id: string | null | undefined) =>
     !filtroAtendente || (filtroAtendente === SEM ? !id : id === filtroAtendente);
@@ -436,9 +437,18 @@ export default function Dashboard() {
 
   /* ---------- Atividades (busca as do período quando a aba abre) ---------- */
   const [ativPeriodo, setAtivPeriodo] = useState<Atividade[] | null>(null);
+  const ivAtividades = useRef("");
+  // muda só quando as atividades mudam de fato (o contexto recria a lista a cada sincronização)
+  const sinalAtividades = atividades.map((a) => `${a.id}:${a.data_hora ?? ""}:${a.responsavel_id ?? ""}`).join(",");
   useEffect(() => {
     if (aba !== "atividades") return;
     let vivo = true;
+    // período novo: some com os números do período anterior até a busca voltar
+    const chave = `${iv.ini}-${iv.fim}`;
+    if (ivAtividades.current !== chave) {
+      ivAtividades.current = chave;
+      setAtivPeriodo(null);
+    }
     const a = new Date(iv.ini).toISOString();
     const b = new Date(iv.fim).toISOString();
     const entre = (campo: string) => `and(${campo}.gte."${a}",${campo}.lt."${b}")`;
@@ -456,12 +466,14 @@ export default function Dashboard() {
     return () => {
       vivo = false;
     };
-    // `atividades` muda quando alguém cria/conclui uma atividade: recarrega junto
+    // recarrega junto quando alguém cria, conclui ou reagenda uma atividade
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aba, iv, atividades]);
+  }, [aba, iv, sinalAtividades]);
 
   const atv = useMemo(() => {
     const passa = (a: Atividade) => {
+      // atividade de negócio excluído (lixeira) não conta
+      if (a.oportunidade_id && !cardPorId.has(a.oportunidade_id)) return false;
       if (!doAtendente(a.responsavel_id)) return false;
       if (!pipelineId) return true;
       const c = a.oportunidade_id ? cardPorId.get(a.oportunidade_id) : undefined;
@@ -500,6 +512,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (aba !== "visitas") return;
     let vivo = true;
+    setVisitas(null);
     supabase
       .from("relatorios_visita")
       .select("*, vendedor:profiles(nome)")

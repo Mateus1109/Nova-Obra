@@ -158,7 +158,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       supabase.from("etapas").select("*").order("ordem"),
       supabase
         .from("oportunidades")
-        .select("*, obra:obras(*), vendedor:profiles(*), lead:leads(*)")
+        // oportunidades tem duas FKs para profiles (vendedor_id e excluido_por): a relação precisa ser nomeada
+        .select("*, obra:obras(*), vendedor:profiles!oportunidades_vendedor_id_fkey(*), lead:leads(*)")
         .is("excluido_em", null)
         .order("criado_em", { ascending: false }),
       supabase.from("obras").select("*").order("criado_em", { ascending: false }),
@@ -175,6 +176,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!piRes.error) setPipelines((piRes.data as Pipeline[]) ?? []);
     if (!etRes.error) setEtapas((etRes.data as Etapa[]) ?? []);
     if (!opRes.error) setCards((opRes.data as Card[]) ?? []);
+    else avisar("Não foi possível carregar os negócios. Recarregue a página.");
     if (!obRes.error) setObras((obRes.data as Obra[]) ?? []);
     if (!leRes.error) setLeads((leRes.data as Lead[]) ?? []);
     if (!atRes.error) setAtividades((atRes.data as Atividade[]) ?? []);
@@ -261,8 +263,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  /** Negócio em aberto que entra numa coluna de ganho/perda passa a ter o status dela (o banco faz o mesmo) */
+  const statusDaColuna = (etapaId: string, c?: Pick<Card, "status">): Partial<Oportunidade> => {
+    const tipo = etapasRef.current.find((e) => e.id === etapaId)?.tipo;
+    if ((tipo === "ganho" || tipo === "perdido") && (c?.status ?? "aberto") === "aberto")
+      return { status: tipo, status_em: new Date().toISOString() };
+    return {};
+  };
+  const comColuna = (c: Card, etapaId: string): Card => ({ ...c, etapa_id: etapaId, ...statusDaColuna(etapaId, c) });
+
   const moverEtapa: DataCtx["moverEtapa"] = (id, etapaId, extra = {}) =>
-    atualizarOportunidade(id, { etapa_id: etapaId, ...extra });
+    atualizarOportunidade(id, { etapa_id: etapaId, ...statusDaColuna(etapaId, cardsRef.current.find((c) => c.id === id)), ...extra });
 
   const setResponsavel: DataCtx["setResponsavel"] = async (id, vendedorId) => {
     const vendedor = vendedoresRef.current.find((v) => v.id === vendedorId) ?? null;
@@ -343,7 +354,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const anteriores = cardsRef.current.filter((c) => c.etapa_id === origemId);
     if (!anteriores.length || origemId === destinoId) return true;
     anteriores.forEach((c) => marcarEditado(c.id));
-    setCards((cs) => cs.map((c) => (c.etapa_id === origemId ? { ...c, etapa_id: destinoId } : c)));
+    setCards((cs) => cs.map((c) => (c.etapa_id === origemId ? comColuna(c, destinoId) : c)));
     const { error } = await supabase.from("oportunidades").update({ etapa_id: destinoId }).eq("etapa_id", origemId);
     if (error) {
       avisar("Não foi possível mover os negócios.");
@@ -358,7 +369,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const temCards = cardsRef.current.some((c) => c.etapa_id === id);
     if (temCards) {
       if (!destinoId) return avisar("Escolha para qual coluna mover os cards.");
-      setCards((cs) => cs.map((c) => (c.etapa_id === id ? { ...c, etapa_id: destinoId } : c)));
+      setCards((cs) => cs.map((c) => (c.etapa_id === id ? comColuna(c, destinoId) : c)));
       const { error } = await supabase.from("oportunidades").update({ etapa_id: destinoId }).eq("etapa_id", id);
       if (error) {
         avisar("Não foi possível mover os cards da coluna.");
@@ -577,8 +588,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       "Não foi possível restaurar o status."
     );
 
-  const moverNegocios: DataCtx["moverNegocios"] = (ids, etapaId) =>
-    atualizarVarios(ids, { etapa_id: etapaId }, plural(ids.length, "Negócio movido.", "negócios movidos"), "Não foi possível mover.");
+  const moverNegocios: DataCtx["moverNegocios"] = async (ids, etapaId) => {
+    const ok = await atualizarVarios(ids, { etapa_id: etapaId }, plural(ids.length, "Negócio movido.", "negócios movidos"), "Não foi possível mover.");
+    // status que o banco aplicou ao entrar numa coluna de ganho/perda
+    if (ok) setCards((cs) => cs.map((c) => (ids.includes(c.id) ? comColuna(c, etapaId) : c)));
+    return ok;
+  };
 
   const excluirNegocios: DataCtx["excluirNegocios"] = async (ids) => {
     if (!ids.length) return true;
