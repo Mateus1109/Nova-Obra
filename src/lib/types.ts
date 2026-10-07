@@ -10,13 +10,17 @@ export type ProdutoAlvo =
   | "locacao_bomba";
 export type Origem = "levantamento" | "indicacao" | "licitacao" | "outro";
 
-export type Etapa =
-  | "qualificacao"
-  | "necessita_analise"
-  | "apresentacao"
-  | "proposta"
-  | "ganho"
-  | "perdido";
+// Colunas do funil — configuráveis pelo diretor (tabela public.etapas)
+export type TipoEtapa = "aberta" | "ganho" | "perdido";
+export interface Etapa {
+  id: string;
+  nome: string;
+  cor: string;
+  ordem: number;
+  tipo: TipoEtapa;
+}
+
+export type FaseObra = "projeto" | "terraplanagem" | "fundacao" | "estrutura" | "alvenaria" | "acabamento";
 
 export type Classificacao = "frio" | "morno" | "quente";
 
@@ -54,6 +58,11 @@ export interface Obra {
   contato_email: string;
   origem: Origem;
   observacoes: string;
+  fase_obra: FaseObra | null;
+  previsao_concretagem: string | null;
+  pavimentos: number | null;
+  area_m2: number | null;
+  fornecedor_atual: string;
   criado_por: string;
   criado_em: string;
 }
@@ -61,8 +70,8 @@ export interface Obra {
 export interface Oportunidade {
   id: string;
   obra_id: string;
-  vendedor_id: string;
-  etapa: Etapa;
+  vendedor_id: string | null;
+  etapa_id: string;
   classificacao: Classificacao;
   proxima_etapa_data: string | null;
   previsao_fechamento: string | null;
@@ -94,14 +103,18 @@ export interface Interacao {
 }
 
 // ---------- Rótulos legíveis ----------
-export const ETAPAS: { key: Etapa; label: string; cor: string }[] = [
-  { key: "qualificacao", label: "Qualificação", cor: "#64748b" },
-  { key: "necessita_analise", label: "Necessita Análise", cor: "#0891b2" },
-  { key: "apresentacao", label: "Apresentação", cor: "#2E78A8" },
-  { key: "proposta", label: "Proposta", cor: "#7c3aed" },
-  { key: "ganho", label: "Ganho", cor: "#16a34a" },
-  { key: "perdido", label: "Perdido", cor: "#dc2626" },
+// Paleta para colorir colunas do funil
+export const CORES_ETAPA = ["#64748b", "#0891b2", "#2E78A8", "#7c3aed", "#db2777", "#f59e0b", "#16a34a", "#dc2626"];
+
+export const FASE_OBRA: { key: FaseObra; label: string }[] = [
+  { key: "projeto", label: "Projeto" },
+  { key: "terraplanagem", label: "Terraplanagem" },
+  { key: "fundacao", label: "Fundação" },
+  { key: "estrutura", label: "Estrutura" },
+  { key: "alvenaria", label: "Alvenaria" },
+  { key: "acabamento", label: "Acabamento" },
 ];
+export const FASE_LABEL = Object.fromEntries(FASE_OBRA.map((f) => [f.key, f.label])) as Record<FaseObra, string>;
 
 export const CLASSIFICACOES: Record<Classificacao, { label: string; bg: string; fg: string }> = {
   frio: { label: "Frio", bg: "#e2e8f0", fg: "#475569" },
@@ -179,6 +192,7 @@ export interface RelatorioVisita {
   concorrente: string;
   proximo_passo: string;
   data_retorno: string | null;
+  fase_obra: FaseObra | null;
   fotos: string[];
   criado_em: string;
   vendedor?: { nome: string } | null;

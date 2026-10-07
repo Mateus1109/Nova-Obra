@@ -7,13 +7,14 @@ import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import { Building2, CheckCheck, TrendingUp, AlertTriangle, Flame, Navigation } from "lucide-react";
 import { useData } from "@/lib/data";
 import { Card, Empty, Spinner } from "@/components/ui";
-import { ETAPAS, CLASSIFICACOES, type Classificacao } from "@/lib/types";
+import { CLASSIFICACOES, type Classificacao } from "@/lib/types";
 import { brl, diasDesde, mapsLink } from "@/lib/utils";
 
 const PARADA_DIAS = 7;
 
 export default function Dashboard() {
-  const { cards, obras, vendedores, visitas, loading } = useData();
+  const { cards, etapas, obras, vendedores, visitas, loading } = useData();
+  const tipoDe = useMemo(() => new Map(etapas.map((e) => [e.id, e.tipo])), [etapas]);
 
   const kpis = useMemo(() => {
     const agora = new Date();
@@ -22,20 +23,20 @@ export default function Dashboard() {
       return d.getMonth() === agora.getMonth() && d.getFullYear() === agora.getFullYear();
     }).length;
     const realizadas = visitas.filter((v) => v.status_visita === "realizada").length;
-    const ganhos = cards.filter((c) => c.etapa === "ganho").length;
-    const fechados = cards.filter((c) => c.etapa === "ganho" || c.etapa === "perdido").length;
+    const ganhos = cards.filter((c) => tipoDe.get(c.etapa_id) === "ganho").length;
+    const fechados = cards.filter((c) => tipoDe.get(c.etapa_id) !== "aberta").length;
     const conversao = fechados ? Math.round((ganhos / fechados) * 100) : 0;
     return { noMes, realizadas, conversao, ganhos };
-  }, [obras, visitas, cards]);
+  }, [obras, visitas, cards, tipoDe]);
 
   const funil = useMemo(
     () =>
-      ETAPAS.map((e) => ({
-        etapa: e.label,
+      etapas.map((e) => ({
+        etapa: e.nome,
         cor: e.cor,
-        qtd: cards.filter((c) => c.etapa === e.key).length,
+        qtd: cards.filter((c) => c.etapa_id === e.id).length,
       })),
-    [cards]
+    [cards, etapas]
   );
 
   const porVendedor = useMemo(
@@ -61,10 +62,10 @@ export default function Dashboard() {
   const paradas = useMemo(
     () =>
       cards
-        .filter((c) => c.etapa !== "ganho" && c.etapa !== "perdido")
+        .filter((c) => tipoDe.get(c.etapa_id) === "aberta")
         .filter((c) => diasDesde(c.atualizado_em) >= PARADA_DIAS)
         .sort((a, b) => diasDesde(b.atualizado_em) - diasDesde(a.atualizado_em)),
-    [cards]
+    [cards, tipoDe]
   );
 
   if (loading) return <Spinner />;

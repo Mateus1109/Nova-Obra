@@ -5,7 +5,7 @@ import { useData } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { Button, Card, Field, Input, Select, Textarea } from "@/components/ui";
 import { extrairCoords } from "@/lib/utils";
-import type { Classificacao, Obra } from "@/lib/types";
+import { FASE_OBRA, type Classificacao, type Obra } from "@/lib/types";
 
 const vazio = {
   nome_obra: "",
@@ -26,6 +26,11 @@ const vazio = {
   contato_email: "",
   origem: "levantamento",
   observacoes: "",
+  fase_obra: "",
+  previsao_concretagem: "",
+  pavimentos: "",
+  area_m2: "",
+  fornecedor_atual: "",
 };
 
 export default function CadastroObra() {
@@ -63,6 +68,11 @@ export default function CadastroObra() {
       latitude: f.latitude === "" ? null : Number(f.latitude),
       longitude: f.longitude === "" ? null : Number(f.longitude),
       volume_estimado_m3: Number(f.volume_estimado_m3) || 0,
+      fase_obra: f.fase_obra || null,
+      previsao_concretagem: f.previsao_concretagem || null,
+      pavimentos: f.pavimentos === "" ? null : Number(f.pavimentos),
+      area_m2: f.area_m2 === "" ? null : Number(f.area_m2),
+      fornecedor_atual: f.fornecedor_atual.trim(),
     } as Partial<Obra>;
     const { error } = await criarObra(payload, vendedorId, Number(valor) || 0, classificacao);
     setSalvando(false);
@@ -131,6 +141,44 @@ export default function CadastroObra() {
             </Field>
             <Field label="Volume estimado (m³)">
               <Input type="number" value={f.volume_estimado_m3} onChange={(e) => set("volume_estimado_m3", e.target.value)} />
+            </Field>
+          </div>
+        </Card>
+
+        <Card className="space-y-4 p-5">
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Andamento da obra</p>
+          <div>
+            <p className="mb-1.5 text-sm font-semibold text-marinho-800">Fase atual</p>
+            <div className="flex flex-wrap gap-1.5">
+              {FASE_OBRA.map((fa) => (
+                <button
+                  key={fa.key}
+                  type="button"
+                  onClick={() => set("fase_obra", f.fase_obra === fa.key ? "" : fa.key)}
+                  className={
+                    "rounded-full border px-3 py-1.5 text-xs font-bold transition " +
+                    (f.fase_obra === fa.key
+                      ? "border-marinho-700 bg-marinho-700 text-white"
+                      : "border-slate-200 bg-white text-slate-600")
+                  }
+                >
+                  {fa.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Concretagem prevista">
+              <Input type="date" value={f.previsao_concretagem} onChange={(e) => set("previsao_concretagem", e.target.value)} />
+            </Field>
+            <Field label="Fornecedor atual de concreto">
+              <Input value={f.fornecedor_atual} onChange={(e) => set("fornecedor_atual", e.target.value)} placeholder="Concorrente que atende hoje" />
+            </Field>
+            <Field label="Pavimentos">
+              <Input type="number" value={f.pavimentos} onChange={(e) => set("pavimentos", e.target.value)} />
+            </Field>
+            <Field label="Área construída (m²)">
+              <Input type="number" value={f.area_m2} onChange={(e) => set("area_m2", e.target.value)} />
             </Field>
           </div>
         </Card>

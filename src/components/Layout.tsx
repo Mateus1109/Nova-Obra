@@ -1,5 +1,8 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { KanbanSquare, Building2, MapPinned, BarChart3, Users, ClipboardList, LogOut } from "lucide-react";
+import { KanbanSquare, Building2, MapPinned, BarChart3, Users, ClipboardList, LogOut, KeyRound } from "lucide-react";
+import { useState } from "react";
+import { supabase } from "@/lib/supabase";
+import { Button, Field, Input, Modal } from "./ui";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/utils";
 import type { ReactNode } from "react";
@@ -31,6 +34,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const { profile, isAdmin, sair } = useAuth();
   const loc = useLocation();
   const itens = nav.filter((n) => !n.adminOnly || isAdmin);
+  const [senhaAberta, setSenhaAberta] = useState(false);
 
   return (
     <div className="min-h-full">
@@ -62,21 +66,34 @@ export default function Layout({ children }: { children: ReactNode }) {
           <p className="truncate text-[11px] text-aco-100">
             {isAdmin ? "Diretor Comercial" : "Vendedor"}
           </p>
-          <button
-            onClick={sair}
-            className="mt-2 flex items-center gap-2 text-xs font-semibold text-aco-100 hover:text-white"
-          >
-            <LogOut size={14} /> Sair
-          </button>
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              onClick={() => setSenhaAberta(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-aco-100 hover:text-white"
+            >
+              <KeyRound size={14} /> Senha
+            </button>
+            <button
+              onClick={sair}
+              className="flex items-center gap-1.5 text-xs font-semibold text-aco-100 hover:text-white"
+            >
+              <LogOut size={14} /> Sair
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Topbar mobile */}
       <header className="no-print sticky top-0 z-30 flex items-center justify-between bg-marinho-700 px-4 py-3 lg:hidden">
         <Logo />
-        <button onClick={sair} className="flex items-center gap-1.5 text-sm font-semibold text-aco-100">
-          <LogOut size={16} /> Sair
-        </button>
+        <div className="flex items-center gap-4">
+          <button onClick={() => setSenhaAberta(true)} className="text-aco-100" aria-label="Alterar senha">
+            <KeyRound size={18} />
+          </button>
+          <button onClick={sair} className="flex items-center gap-1.5 text-sm font-semibold text-aco-100">
+            <LogOut size={16} /> Sair
+          </button>
+        </div>
       </header>
 
       {/* Conteúdo */}
@@ -104,6 +121,47 @@ export default function Layout({ children }: { children: ReactNode }) {
           );
         })}
       </nav>
+
+      {senhaAberta && <AlterarSenha onClose={() => setSenhaAberta(false)} />}
     </div>
+  );
+}
+
+function AlterarSenha({ onClose }: { onClose: () => void }) {
+  const [senha, setSenha] = useState("");
+  const [confirma, setConfirma] = useState("");
+  const [msg, setMsg] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  async function salvar() {
+    if (senha.length < 8) return setMsg({ ok: false, texto: "Use pelo menos 8 caracteres." });
+    if (senha !== confirma) return setMsg({ ok: false, texto: "As senhas não conferem." });
+    setSalvando(true);
+    const { error } = await supabase.auth.updateUser({ password: senha });
+    setSalvando(false);
+    if (error) return setMsg({ ok: false, texto: "Não foi possível alterar. Tente uma senha diferente." });
+    setMsg({ ok: true, texto: "Senha alterada! Use a nova senha no próximo acesso." });
+    setTimeout(onClose, 1500);
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Alterar minha senha">
+      <div className="space-y-4">
+        <Field label="Nova senha">
+          <Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} autoComplete="new-password" />
+        </Field>
+        <Field label="Repita a nova senha">
+          <Input type="password" value={confirma} onChange={(e) => setConfirma(e.target.value)} autoComplete="new-password" />
+        </Field>
+        {msg && (
+          <p className={cx("rounded-xl px-3 py-2 text-sm font-medium", msg.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700")}>
+            {msg.texto}
+          </p>
+        )}
+        <Button className="w-full" size="lg" onClick={salvar} disabled={salvando}>
+          {salvando ? "Salvando..." : "Salvar nova senha"}
+        </Button>
+      </div>
+    </Modal>
   );
 }

@@ -13,27 +13,28 @@ import {
   MapPin,
   Navigation,
   Search,
-  Flame,
   LayoutGrid,
   List as ListIcon,
+  MoreHorizontal,
+  Pencil,
+  ArrowLeft,
+  ArrowRight,
+  Trash2,
+  Plus,
+  Check,
+  X,
 } from "lucide-react";
 import { useData, type Card as TCard } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
-import {
-  ETAPAS,
-  CLASSIFICACOES,
-  PRODUTO_LABEL,
-  STATUS_OBRA_LABEL,
-  type Etapa,
-  type Classificacao,
-} from "@/lib/types";
+import { CLASSIFICACOES, CORES_ETAPA, FASE_LABEL, PRODUTO_LABEL, type Classificacao, type Etapa } from "@/lib/types";
 import { brl, cx, dataBR, mapsLink } from "@/lib/utils";
 import { Badge, Button, Field, Input, Modal, Select, Spinner } from "@/components/ui";
+import FichaObra from "@/components/FichaObra";
 
 type Vista = "quadro" | "lista";
 
 export default function Kanban() {
-  const { cards, vendedores, loading, moverEtapa, setClassificacao } = useData();
+  const { cards, etapas, vendedores, loading, moverEtapa, setClassificacao } = useData();
   const { isAdmin } = useAuth();
 
   const [vista, setVista] = useState<Vista>("quadro");
@@ -44,9 +45,11 @@ export default function Kanban() {
   const [fClass, setFClass] = useState("");
   const [detalheId, setDetalheId] = useState<string | null>(null);
   const [pendente, setPendente] = useState<{ card: TCard; etapa: Etapa } | null>(null);
+  const [excluindo, setExcluindo] = useState<Etapa | null>(null);
 
-  // card "ao vivo" (reflete alterações de classificação/etapa em tempo real)
+  // card "ao vivo" (reflete alterações na hora)
   const detalhe = detalheId ? cards.find((c) => c.id === detalheId) ?? null : null;
+  const etapaPorId = useMemo(() => new Map(etapas.map((e) => [e.id, e])), [etapas]);
 
   const bairros = useMemo(
     () => Array.from(new Set(cards.map((c) => c.obra?.bairro).filter(Boolean))).sort(),
@@ -59,7 +62,7 @@ export default function Kanban() {
         if (!c.obra) return false;
         const q = busca.toLowerCase();
         if (q && !`${c.obra.nome_obra} ${c.obra.construtora}`.toLowerCase().includes(q)) return false;
-        if (fVendedor && c.vendedor_id !== fVendedor) return false;
+        if (fVendedor === "_sem" ? c.vendedor_id : fVendedor && c.vendedor_id !== fVendedor) return false;
         if (fBairro && c.obra.bairro !== fBairro) return false;
         if (fStatus && c.obra.status_obra !== fStatus) return false;
         if (fClass && c.classificacao !== fClass) return false;
@@ -73,21 +76,23 @@ export default function Kanban() {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } })
   );
 
+  // Ganho/perdido pedem confirmação (valor fechado / motivo da perda)
+  function irParaEtapa(card: TCard, etapaId: string) {
+    const destino = etapaPorId.get(etapaId);
+    if (!destino || card.etapa_id === etapaId) return;
+    if (destino.tipo !== "aberta") setPendente({ card, etapa: destino });
+    else moverEtapa(card.id, etapaId);
+  }
+
   function onDragEnd(e: DragEndEvent) {
     const card = cards.find((c) => c.id === e.active.id);
-    const destino = e.over?.id as Etapa | undefined;
-    if (!card || !destino || card.etapa === destino) return;
-    if (destino === "perdido" || destino === "ganho") {
-      setPendente({ card, etapa: destino });
-      return;
-    }
-    moverEtapa(card.id, destino);
+    if (card && e.over) irParaEtapa(card, String(e.over.id));
   }
 
   if (loading) return <Spinner />;
 
   const totalValor = filtrados
-    .filter((c) => c.etapa !== "perdido")
+    .filter((c) => etapaPorId.get(c.etapa_id)?.tipo !== "perdido")
     .reduce((s, c) => s + (c.valor_estimado || 0), 0);
 
   return (
@@ -99,26 +104,19 @@ export default function Kanban() {
             {filtrados.length} oportunidades · {brl(totalValor)} em potencial
           </p>
         </div>
-        {/* Alternância de vista */}
         <div className="flex rounded-xl border border-slate-200 bg-white p-1">
-          <button
-            onClick={() => setVista("quadro")}
-            className={cx(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
-              vista === "quadro" ? "bg-marinho-700 text-white" : "text-slate-500 hover:text-marinho-700"
-            )}
-          >
-            <LayoutGrid size={16} /> Quadro
-          </button>
-          <button
-            onClick={() => setVista("lista")}
-            className={cx(
-              "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition",
-              vista === "lista" ? "bg-marinho-700 text-white" : "text-slate-500 hover:text-marinho-700"
-            )}
-          >
-            <ListIcon size={16} /> Lista
-          </button>
+          {(["quadro", "lista"] as Vista[]).map((v) => (
+            <button
+              key={v}
+              onClick={() => setVista(v)}
+              className={cx(
+                "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold capitalize transition",
+                vista === v ? "bg-marinho-700 text-white" : "text-slate-500 hover:text-marinho-700"
+              )}
+            >
+              {v === "quadro" ? <LayoutGrid size={16} /> : <ListIcon size={16} />} {v}
+            </button>
+          ))}
         </div>
       </header>
 
@@ -136,9 +134,8 @@ export default function Kanban() {
         {isAdmin && (
           <Select value={fVendedor} onChange={(e) => setFVendedor(e.target.value)}>
             <option value="">Todos vendedores</option>
-            {vendedores.map((v) => (
-              <option key={v.id} value={v.id}>{v.nome}</option>
-            ))}
+            <option value="_sem">Sem responsável</option>
+            {vendedores.map((v) => (<option key={v.id} value={v.id}>{v.nome}</option>))}
           </Select>
         )}
         <Select value={fBairro} onChange={(e) => setFBairro(e.target.value)}>
@@ -161,34 +158,36 @@ export default function Kanban() {
       {vista === "quadro" ? (
         <DndContext sensors={sensors} onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
-            {ETAPAS.map((et) => (
+            {etapas.map((et, i) => (
               <Coluna
-                key={et.key}
+                key={et.id}
                 etapa={et}
-                cards={filtrados.filter((c) => c.etapa === et.key)}
+                primeira={i === 0}
+                ultima={i === etapas.length - 1}
+                podeEditar={isAdmin}
+                cards={filtrados.filter((c) => c.etapa_id === et.id)}
                 onOpen={setDetalheId}
+                onExcluir={() => setExcluindo(et)}
               />
             ))}
+            {isAdmin && <NovaColuna />}
           </div>
         </DndContext>
       ) : (
         <ListaView
           cards={filtrados}
-          isAdmin={isAdmin}
+          etapas={etapas}
           onOpen={setDetalheId}
-          onEtapa={(c, etapa) => {
-            if (etapa === "perdido" || etapa === "ganho") setPendente({ card: c, etapa });
-            else moverEtapa(c.id, etapa);
-          }}
+          onEtapa={irParaEtapa}
           onClass={(id, cl) => setClassificacao(id, cl)}
         />
       )}
 
       {detalhe && (
-        <DetalheModal
+        <FichaObra
           card={detalhe}
           onClose={() => setDetalheId(null)}
-          onClass={(c) => setClassificacao(detalhe.id, c)}
+          onMudarEtapa={(etapaId) => irParaEtapa(detalhe, etapaId)}
         />
       )}
 
@@ -197,37 +196,133 @@ export default function Kanban() {
           info={pendente}
           onClose={() => setPendente(null)}
           onConfirm={(extra) => {
-            moverEtapa(pendente.card.id, pendente.etapa, extra);
+            moverEtapa(pendente.card.id, pendente.etapa.id, extra);
             setPendente(null);
           }}
         />
       )}
+
+      {excluindo && <ExcluirColuna etapa={excluindo} onClose={() => setExcluindo(null)} />}
     </div>
   );
 }
 
-/* ---------------- QUADRO (kanban) ---------------- */
+/* ---------------- QUADRO ---------------- */
 
 function Coluna({
   etapa,
+  primeira,
+  ultima,
+  podeEditar,
   cards,
   onOpen,
+  onExcluir,
 }: {
-  etapa: (typeof ETAPAS)[number];
+  etapa: Etapa;
+  primeira: boolean;
+  ultima: boolean;
+  podeEditar: boolean;
   cards: TCard[];
   onOpen: (id: string) => void;
+  onExcluir: () => void;
 }) {
-  const { setNodeRef, isOver } = useDroppable({ id: etapa.key });
+  const { atualizarEtapa, moverColuna } = useData();
+  const { setNodeRef, isOver } = useDroppable({ id: etapa.id });
+  const [menu, setMenu] = useState(false);
+  const [renomeando, setRenomeando] = useState(false);
+  const [nome, setNome] = useState(etapa.nome);
   const soma = cards.reduce((s, c) => s + (c.valor_estimado || 0), 0);
+
+  function salvarNome() {
+    const n = nome.trim();
+    if (n && n !== etapa.nome) atualizarEtapa(etapa.id, { nome: n });
+    else setNome(etapa.nome);
+    setRenomeando(false);
+  }
+
   return (
     <div className="flex w-[290px] flex-shrink-0 flex-col">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: etapa.cor }} />
-          <span className="font-bold text-marinho-800">{etapa.label}</span>
-          <span className="rounded-full bg-slate-200 px-2 text-xs font-bold text-slate-600">{cards.length}</span>
-        </div>
+      <div className="relative mb-2 flex items-center justify-between gap-2 px-1">
+        {renomeando ? (
+          <div className="flex flex-1 items-center gap-1">
+            <Input
+              autoFocus
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") salvarNome();
+                if (e.key === "Escape") {
+                  setNome(etapa.nome);
+                  setRenomeando(false);
+                }
+              }}
+              className="py-1.5"
+            />
+            <button onClick={salvarNome} className="rounded-lg p-1.5 text-green-600 hover:bg-green-50" aria-label="Salvar">
+              <Check size={16} />
+            </button>
+          </div>
+        ) : (
+          <button
+            className="flex min-w-0 items-center gap-2"
+            onDoubleClick={() => { if (podeEditar) { setNome(etapa.nome); setRenomeando(true); } }}
+            title={podeEditar ? "Clique duas vezes para renomear" : undefined}
+          >
+            <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: etapa.cor }} />
+            <span className="truncate font-bold text-marinho-800">{etapa.nome}</span>
+            <span className="rounded-full bg-slate-200 px-2 text-xs font-bold text-slate-600">{cards.length}</span>
+          </button>
+        )}
+
+        {podeEditar && !renomeando && (
+          <button
+            onClick={() => setMenu((m) => !m)}
+            className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
+            aria-label="Opções da coluna"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        )}
+
+        {menu && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
+            <div className="absolute right-0 top-8 z-40 w-56 rounded-xl border border-slate-100 bg-white p-1.5 shadow-cardhover">
+              <ItemMenu icon={<Pencil size={15} />} onClick={() => { setMenu(false); setNome(etapa.nome); setRenomeando(true); }}>
+                Renomear
+              </ItemMenu>
+              <div className="flex flex-wrap gap-1.5 px-2.5 py-2">
+                {CORES_ETAPA.map((cor) => (
+                  <button
+                    key={cor}
+                    onClick={() => atualizarEtapa(etapa.id, { cor })}
+                    className={cx(
+                      "h-6 w-6 rounded-full border-2",
+                      etapa.cor === cor ? "border-marinho-800" : "border-white"
+                    )}
+                    style={{ background: cor }}
+                    aria-label={`Cor ${cor}`}
+                  />
+                ))}
+              </div>
+              {!primeira && (
+                <ItemMenu icon={<ArrowLeft size={15} />} onClick={() => { setMenu(false); moverColuna(etapa.id, -1); }}>
+                  Mover para a esquerda
+                </ItemMenu>
+              )}
+              {!ultima && (
+                <ItemMenu icon={<ArrowRight size={15} />} onClick={() => { setMenu(false); moverColuna(etapa.id, 1); }}>
+                  Mover para a direita
+                </ItemMenu>
+              )}
+              <ItemMenu icon={<Trash2 size={15} />} perigo onClick={() => { setMenu(false); onExcluir(); }}>
+                Excluir coluna
+              </ItemMenu>
+            </div>
+          </>
+        )}
       </div>
+
       <div
         ref={setNodeRef}
         className={cx(
@@ -238,26 +333,137 @@ function Coluna({
         {cards.map((c) => (
           <KanbanCard key={c.id} card={c} onOpen={onOpen} />
         ))}
-        {cards.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-slate-400">Arraste cards para cá</p>
-        )}
-        {soma > 0 && (
-          <p className="mt-auto px-1 pt-1 text-[11px] font-semibold text-slate-400">{brl(soma)}</p>
-        )}
+        {cards.length === 0 && <p className="px-2 py-6 text-center text-xs text-slate-400">Arraste cards para cá</p>}
+        {soma > 0 && <p className="mt-auto px-1 pt-1 text-[11px] font-semibold text-slate-400">{brl(soma)}</p>}
       </div>
     </div>
+  );
+}
+
+function ItemMenu({
+  icon,
+  children,
+  onClick,
+  perigo,
+}: {
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  onClick: () => void;
+  perigo?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cx(
+        "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold",
+        perigo ? "text-red-600 hover:bg-red-50" : "text-marinho-800 hover:bg-slate-50"
+      )}
+    >
+      {icon} {children}
+    </button>
+  );
+}
+
+function NovaColuna() {
+  const { criarEtapa } = useData();
+  const [aberto, setAberto] = useState(false);
+  const [nome, setNome] = useState("");
+
+  async function criar() {
+    if (!nome.trim()) return;
+    await criarEtapa(nome.trim());
+    setNome("");
+    setAberto(false);
+  }
+
+  return (
+    <div className="w-[260px] flex-shrink-0">
+      {aberto ? (
+        <div className="rounded-2xl bg-slate-100/70 p-3">
+          <Input
+            autoFocus
+            placeholder="Nome da coluna"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") criar();
+              if (e.key === "Escape") setAberto(false);
+            }}
+          />
+          <div className="mt-2 flex gap-2">
+            <Button size="sm" className="flex-1" onClick={criar}>Criar coluna</Button>
+            <Button size="sm" variant="ghost" onClick={() => setAberto(false)} aria-label="Cancelar">
+              <X size={16} />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setAberto(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 py-3 text-sm font-bold text-slate-500 hover:border-aco-500 hover:text-aco-600"
+        >
+          <Plus size={16} /> Nova coluna
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ExcluirColuna({ etapa, onClose }: { etapa: Etapa; onClose: () => void }) {
+  const { etapas, cards, excluirEtapa } = useData();
+  const qtd = cards.filter((c) => c.etapa_id === etapa.id).length;
+  const outras = etapas.filter((e) => e.id !== etapa.id);
+  const [destino, setDestino] = useState(outras[0]?.id ?? "");
+  const [excluindo, setExcluindo] = useState(false);
+
+  return (
+    <Modal open onClose={onClose} title={`Excluir a coluna "${etapa.nome}"`}>
+      {outras.length === 0 ? (
+        <p className="text-sm text-slate-600">O funil precisa ter pelo menos uma coluna.</p>
+      ) : (
+        <div className="space-y-4">
+          {qtd > 0 ? (
+            <Field label={`Esta coluna tem ${qtd} card(s). Mover para:`}>
+              <Select value={destino} onChange={(e) => setDestino(e.target.value)}>
+                {outras.map((e) => (<option key={e.id} value={e.id}>{e.nome}</option>))}
+              </Select>
+            </Field>
+          ) : (
+            <p className="text-sm text-slate-600">A coluna está vazia e será removida do funil.</p>
+          )}
+          {etapa.tipo !== "aberta" && (
+            <p className="rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Esta coluna conta como <b>{etapa.tipo === "ganho" ? "ganho" : "perdido"}</b> na taxa de conversão do
+              painel. Sem ela, essa métrica deixa de ser calculada.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button variant="ghost" className="flex-1" onClick={onClose}>Cancelar</Button>
+            <Button
+              variant="danger"
+              className="flex-1"
+              disabled={excluindo}
+              onClick={async () => {
+                setExcluindo(true);
+                await excluirEtapa(etapa.id, qtd > 0 ? destino : null);
+                onClose();
+              }}
+            >
+              <Trash2 size={16} /> Excluir coluna
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
 function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (id: string) => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: card.id });
   const cl = CLASSIFICACOES[card.classificacao];
-  const style = transform
-    ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 }
-    : undefined;
-
-  // card inteiro arrastável; clique (sem arrastar) abre os detalhes
+  const style = transform ? { transform: `translate(${transform.x}px, ${transform.y}px)`, zIndex: 50 } : undefined;
   const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
+  const o = card.obra;
 
   return (
     <div
@@ -273,31 +479,39 @@ function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (id: string) => voi
     >
       <div className="flex items-start gap-1.5">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-bold text-marinho-800">{card.obra?.nome_obra}</p>
-          <p className="truncate text-xs text-slate-500">{card.obra?.construtora}</p>
+          <p className="truncate font-bold text-marinho-800">{o?.nome_obra}</p>
+          <p className="truncate text-xs text-slate-500">{o?.construtora || "—"}</p>
         </div>
         <Badge bg={cl.bg} fg={cl.fg}>{cl.label}</Badge>
       </div>
 
-      <div className="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500">
-        <MapPin size={13} /> {card.obra?.bairro}
+      <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">
+        <MapPin size={13} /> {o?.bairro || "—"}
         <span className="text-slate-300">·</span>
-        {PRODUTO_LABEL[card.obra?.produto_alvo]}
-      </div>
-
-      <div className="mt-2 flex items-center justify-between">
-        <span className="font-bold text-marinho-700">{brl(card.valor_estimado)}</span>
-        {card.proxima_etapa_data && (
-          <span className="text-[11px] font-medium text-slate-400">próx. {dataBR(card.proxima_etapa_data)}</span>
+        {o?.fase_obra ? (
+          <span className="rounded-md bg-marinho-50 px-1.5 py-0.5 font-semibold text-marinho-700">
+            {FASE_LABEL[o.fase_obra]}
+          </span>
+        ) : (
+          PRODUTO_LABEL[o?.produto_alvo]
         )}
       </div>
 
+      <div className="mt-2 flex items-center justify-between">
+        <span className="font-bold text-marinho-700">{card.valor_estimado ? brl(card.valor_estimado) : "—"}</span>
+        {o?.previsao_concretagem ? (
+          <span className="text-[11px] font-medium text-slate-400">concreta {dataBR(o.previsao_concretagem)}</span>
+        ) : card.proxima_etapa_data ? (
+          <span className="text-[11px] font-medium text-slate-400">próx. {dataBR(card.proxima_etapa_data)}</span>
+        ) : null}
+      </div>
+
       <div className="mt-2.5 flex items-center justify-between border-t border-slate-100 pt-2">
-        <span className="truncate text-[11px] font-semibold text-slate-500">
+        <span className={cx("truncate text-[11px] font-semibold", card.vendedor ? "text-slate-500" : "text-amber-600")}>
           {card.vendedor?.nome ?? "Sem responsável"}
         </span>
         <a
-          href={mapsLink(card.obra?.latitude, card.obra?.longitude, card.obra?.endereco)}
+          href={mapsLink(o?.latitude, o?.longitude, o?.endereco || o?.bairro)}
           target="_blank"
           rel="noreferrer"
           onPointerDown={stop}
@@ -315,15 +529,15 @@ function KanbanCard({ card, onOpen }: { card: TCard; onOpen: (id: string) => voi
 
 function ListaView({
   cards,
-  isAdmin,
+  etapas,
   onOpen,
   onEtapa,
   onClass,
 }: {
   cards: TCard[];
-  isAdmin: boolean;
+  etapas: Etapa[];
   onOpen: (id: string) => void;
-  onEtapa: (c: TCard, etapa: Etapa) => void;
+  onEtapa: (c: TCard, etapaId: string) => void;
   onClass: (id: string, cl: Classificacao) => void;
 }) {
   if (cards.length === 0)
@@ -337,7 +551,6 @@ function ListaView({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-card">
-      {/* Cabeçalho (desktop) */}
       <div className="hidden grid-cols-12 gap-2 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-bold uppercase tracking-wide text-slate-400 lg:grid">
         <div className="col-span-3">Obra</div>
         <div className="col-span-2">Vendedor</div>
@@ -354,25 +567,22 @@ function ListaView({
               <div className="col-span-2 lg:col-span-3">
                 <button onClick={() => onOpen(c.id)} className="text-left">
                   <p className="font-bold text-marinho-800 hover:text-aco-600">{c.obra?.nome_obra}</p>
-                  <p className="text-xs text-slate-500">{c.obra?.construtora} · {c.obra?.bairro}</p>
+                  <p className="text-xs text-slate-500">
+                    {[c.obra?.construtora, c.obra?.bairro, c.obra?.fase_obra && FASE_LABEL[c.obra.fase_obra]]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
                 </button>
               </div>
-
               <div className="lg:col-span-2">
                 <p className="text-xs font-bold uppercase text-slate-400 lg:hidden">Vendedor</p>
                 <p className="truncate text-sm text-marinho-800">{c.vendedor?.nome ?? "—"}</p>
               </div>
-
               <div className="lg:col-span-2">
-                <Select
-                  value={c.etapa}
-                  onChange={(e) => onEtapa(c, e.target.value as Etapa)}
-                  className="py-1.5 text-sm"
-                >
-                  {ETAPAS.map((et) => (<option key={et.key} value={et.key}>{et.label}</option>))}
+                <Select value={c.etapa_id} onChange={(e) => onEtapa(c, e.target.value)} className="py-1.5 text-sm">
+                  {etapas.map((et) => (<option key={et.id} value={et.id}>{et.nome}</option>))}
                 </Select>
               </div>
-
               <div className="lg:col-span-1">
                 <button
                   onClick={() => onClass(c.id, proxCl[c.classificacao])}
@@ -383,14 +593,12 @@ function ListaView({
                   {cl.label}
                 </button>
               </div>
-
               <div className="text-right lg:col-span-2">
-                <span className="font-bold text-marinho-700">{brl(c.valor_estimado)}</span>
+                <span className="font-bold text-marinho-700">{c.valor_estimado ? brl(c.valor_estimado) : "—"}</span>
               </div>
-
               <div className="col-span-2 flex justify-end gap-2 lg:col-span-2">
                 <a
-                  href={mapsLink(c.obra?.latitude, c.obra?.longitude, c.obra?.endereco)}
+                  href={mapsLink(c.obra?.latitude, c.obra?.longitude, c.obra?.endereco || c.obra?.bairro)}
                   target="_blank"
                   rel="noreferrer"
                   className="flex items-center gap-1 rounded-lg bg-aco-50 px-2.5 py-1.5 text-xs font-bold text-aco-600 hover:bg-aco-100"
@@ -401,7 +609,7 @@ function ListaView({
                   onClick={() => onOpen(c.id)}
                   className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-marinho-700 hover:bg-slate-50"
                 >
-                  Detalhes
+                  Ficha
                 </button>
               </div>
             </div>
@@ -412,89 +620,7 @@ function ListaView({
   );
 }
 
-/* ---------------- MODAL DETALHE ---------------- */
-
-function DetalheModal({
-  card,
-  onClose,
-  onClass,
-}: {
-  card: TCard;
-  onClose: () => void;
-  onClass: (c: Classificacao) => void;
-}) {
-  const o = card.obra;
-  return (
-    <Modal open onClose={onClose} title={o?.nome_obra ?? "Obra"} wide>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Info label="Construtora" valor={o?.construtora} />
-        <Info label="Status da obra" valor={STATUS_OBRA_LABEL[o?.status_obra]} />
-        <Info label="Produto-alvo" valor={PRODUTO_LABEL[o?.produto_alvo]} />
-        <Info label="Volume estimado" valor={`${o?.volume_estimado_m3 ?? 0} m³`} />
-        <Info label="Bairro" valor={`${o?.bairro} · ${o?.cidade}/${o?.uf}`} />
-        <Info label="Endereço" valor={o?.endereco} />
-        <Info label="Contato" valor={`${o?.contato_nome} (${o?.contato_cargo})`} />
-        <Info label="Telefone" valor={o?.contato_telefone} />
-        <Info label="Responsável" valor={card.vendedor?.nome} />
-        <Info label="Valor estimado" valor={brl(card.valor_estimado)} />
-        <Info label="Previsão de fechamento" valor={dataBR(card.previsao_fechamento)} />
-        <Info label="Próxima etapa" valor={dataBR(card.proxima_etapa_data)} />
-      </div>
-
-      {o?.observacoes && (
-        <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-600">{o.observacoes}</div>
-      )}
-
-      {card.motivo_perda && (
-        <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-          <b>Motivo da perda:</b> {card.motivo_perda}
-          {card.concorrente ? ` · Concorrente: ${card.concorrente}` : ""}
-        </div>
-      )}
-
-      <div className="mt-5">
-        <p className="mb-2 flex items-center gap-1.5 text-sm font-bold text-marinho-800">
-          <Flame size={15} /> Classificação (temperatura)
-        </p>
-        <div className="flex gap-2">
-          {(["frio", "morno", "quente"] as Classificacao[]).map((c) => (
-            <button
-              key={c}
-              onClick={() => onClass(c)}
-              className={cx(
-                "flex-1 rounded-xl border-2 py-2 text-sm font-bold capitalize transition",
-                card.classificacao === c ? "border-marinho-700 ring-2 ring-marinho-700/20" : "border-transparent"
-              )}
-              style={{ background: CLASSIFICACOES[c].bg, color: CLASSIFICACOES[c].fg }}
-            >
-              {CLASSIFICACOES[c].label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <a
-        href={mapsLink(o?.latitude, o?.longitude, o?.endereco)}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-5 block"
-      >
-        <Button className="w-full" size="lg">
-          <Navigation size={18} /> Abrir rota no Google Maps
-        </Button>
-      </a>
-    </Modal>
-  );
-}
-
-function Info({ label, valor }: { label: string; valor?: string | null }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="font-medium text-marinho-800">{valor || "—"}</p>
-    </div>
-  );
-}
+/* ---------------- Confirmar ganho / perda ---------------- */
 
 function ConfirmarEtapa({
   info,
@@ -505,13 +631,13 @@ function ConfirmarEtapa({
   onClose: () => void;
   onConfirm: (extra: Record<string, unknown>) => void;
 }) {
-  const ganho = info.etapa === "ganho";
+  const ganho = info.etapa.tipo === "ganho";
   const [valor, setValor] = useState(String(info.card.valor_estimado || 0));
   const [motivo, setMotivo] = useState("");
   const [concorrente, setConcorrente] = useState("");
 
   return (
-    <Modal open onClose={onClose} title={ganho ? "Marcar como Ganho" : "Marcar como Perdido"}>
+    <Modal open onClose={onClose} title={`Mover para "${info.etapa.nome}"`}>
       {ganho ? (
         <Field label="Valor fechado (R$)">
           <Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} />

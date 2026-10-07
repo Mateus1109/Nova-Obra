@@ -3,17 +3,10 @@ import { useAuth } from "@/lib/auth";
 import { Button, Input } from "@/components/ui";
 import { Building2 } from "lucide-react";
 
-const DEMOS = [
-  { label: "Diretor", email: "diretor@megamix.com" },
-  { label: "Carlos (vendedor)", email: "carlos@megamix.com" },
-  { label: "Fernanda (vendedora)", email: "fernanda@megamix.com" },
-  { label: "Ricardo (vendedor)", email: "ricardo@megamix.com" },
-];
-
 export default function Login() {
   const { entrar } = useAuth();
-  const [email, setEmail] = useState("diretor@megamix.com");
-  const [senha, setSenha] = useState("megamix123");
+  const [email, setEmail] = useState("");
+  const [senha, setSenha] = useState("");
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
@@ -72,22 +65,6 @@ export default function Login() {
             {carregando ? "Entrando..." : "Entrar"}
           </Button>
 
-          <div className="mt-6 rounded-xl bg-white p-3 shadow-card">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-400">Acesso de demonstração</p>
-            <div className="grid grid-cols-2 gap-2">
-              {DEMOS.map((d) => (
-                <button
-                  key={d.email}
-                  type="button"
-                  onClick={() => { setEmail(d.email); setSenha("megamix123"); }}
-                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-marinho-700 hover:border-aco-500 hover:bg-aco-50"
-                >
-                  {d.label}
-                </button>
-              ))}
-            </div>
-            <p className="mt-2 text-center text-[11px] text-slate-400">Senha de todos: megamix123</p>
-          </div>
         </form>
       </div>
     </div>
