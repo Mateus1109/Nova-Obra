@@ -30,6 +30,7 @@ import {
   Tags,
   LayoutGrid,
   List as ListIcon,
+  MoveRight,
 } from "lucide-react";
 import { tituloCard, useData, type Card as TCard } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
@@ -111,6 +112,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
   const [atividadePara, setAtividadePara] = useState<TCard | null>(null);
   const [pendente, setPendente] = useState<{ card: TCard; etapa: Etapa } | null>(null);
   const [excluindo, setExcluindo] = useState<Etapa | null>(null);
+  const [movendoTodos, setMovendoTodos] = useState<Etapa | null>(null);
   const [menu, setMenu] = useState<"filtros" | "ordem" | "intervalo" | "mais" | null>(null);
   const [editandoPipe, setEditandoPipe] = useState(false);
 
@@ -321,6 +323,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
                 proxAtividade={proxAtividade}
                 onOpen={setPainel}
                 onExcluir={() => setExcluindo(et)}
+                onMoverTodos={() => setMovendoTodos(et)}
                 onNovoNegocio={() => setNovoNegocio(et.id)}
                 onAtividade={setAtividadePara}
               />
@@ -367,6 +370,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
         />
       )}
       {excluindo && <ExcluirColuna etapa={excluindo} colunas={colunas} onClose={() => setExcluindo(null)} />}
+      {movendoTodos && <MoverTodos etapa={movendoTodos} onClose={() => setMovendoTodos(null)} />}
       {editandoPipe && <EditarPipeline pipeline={pipeline} onClose={() => setEditandoPipe(false)} />}
     </div>
   );
@@ -452,6 +456,7 @@ function Coluna({
   proxAtividade,
   onOpen,
   onExcluir,
+  onMoverTodos,
   onNovoNegocio,
   onAtividade,
 }: {
@@ -464,6 +469,7 @@ function Coluna({
   proxAtividade: Map<string, import("@/lib/types").Atividade>;
   onOpen: (id: string) => void;
   onExcluir: () => void;
+  onMoverTodos: () => void;
   onNovoNegocio: () => void;
   onAtividade: (c: TCard) => void;
 }) {
@@ -567,6 +573,11 @@ function Coluna({
               {!ultima && (
                 <ItemMenu icon={<ArrowRight size={15} />} onClick={() => { setMenu(false); moverColuna(etapa.id, 1); }}>
                   Mover para a direita
+                </ItemMenu>
+              )}
+              {cards.length > 0 && (
+                <ItemMenu icon={<MoveRight size={15} />} onClick={() => { setMenu(false); onMoverTodos(); }}>
+                  Mover todos os negócios
                 </ItemMenu>
               )}
               <ItemMenu icon={<Trash2 size={15} />} perigo onClick={() => { setMenu(false); onExcluir(); }}>
@@ -790,6 +801,59 @@ function ExcluirColuna({ etapa, colunas, onClose }: { etapa: Etapa; colunas: Eta
           </div>
         </div>
       )}
+    </Modal>
+  );
+}
+
+/** Move todos os negócios de uma coluna para outra (inclusive de outro pipeline). */
+function MoverTodos({ etapa, onClose }: { etapa: Etapa; onClose: () => void }) {
+  const { cards, etapas, pipelines, moverTodosDaColuna } = useData();
+  const qtd = cards.filter((c) => c.etapa_id === etapa.id).length;
+  const destinos = pipelines.flatMap((p) =>
+    etapas.filter((e) => e.pipeline_id === p.id && e.id !== etapa.id).map((e) => ({ ...e, pipelineNome: p.nome }))
+  );
+  const [destino, setDestino] = useState(destinos.find((d) => d.pipeline_id === etapa.pipeline_id)?.id ?? destinos[0]?.id ?? "");
+  const [movendo, setMovendo] = useState(false);
+  const multi = pipelines.length > 1;
+
+  return (
+    <Modal open onClose={onClose} title={`Mover negócios de "${etapa.nome}"`}>
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          {qtd} negócio{qtd === 1 ? "" : "s"} desta coluna ser{qtd === 1 ? "á movido" : "ão movidos"} de uma vez. Os filtros da tela não se aplicam: entram todos.
+        </p>
+        <Field label="Mover para">
+          <Select value={destino} onChange={(e) => setDestino(e.target.value)}>
+            {multi
+              ? pipelines.map((p) => (
+                  <optgroup key={p.id} label={p.nome}>
+                    {destinos
+                      .filter((d) => d.pipeline_id === p.id)
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>{d.nome}</option>
+                      ))}
+                  </optgroup>
+                ))
+              : destinos.map((d) => (
+                  <option key={d.id} value={d.id}>{d.nome}</option>
+                ))}
+          </Select>
+        </Field>
+        <div className="flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button
+            disabled={!destino || movendo}
+            onClick={async () => {
+              setMovendo(true);
+              const ok = await moverTodosDaColuna(etapa.id, destino);
+              setMovendo(false);
+              if (ok) onClose();
+            }}
+          >
+            <MoveRight size={16} /> {movendo ? "Movendo..." : "Mover todos"}
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }

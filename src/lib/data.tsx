@@ -49,6 +49,7 @@ interface DataCtx {
   atualizarEtapa: (id: string, mudanca: Partial<Etapa>) => Promise<void>;
   moverColuna: (id: string, direcao: -1 | 1) => Promise<void>;
   excluirEtapa: (id: string, destinoId: string | null) => Promise<void>;
+  moverTodosDaColuna: (origemId: string, destinoId: string) => Promise<boolean>;
 }
 
 const Ctx = createContext<DataCtx>(null!);
@@ -256,6 +257,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     await gravarOrdem(lista);
   };
 
+  const moverTodosDaColuna: DataCtx["moverTodosDaColuna"] = async (origemId, destinoId) => {
+    const anteriores = cardsRef.current.filter((c) => c.etapa_id === origemId);
+    if (!anteriores.length || origemId === destinoId) return true;
+    anteriores.forEach((c) => marcarEditado(c.id));
+    setCards((cs) => cs.map((c) => (c.etapa_id === origemId ? { ...c, etapa_id: destinoId } : c)));
+    const { error } = await supabase.from("oportunidades").update({ etapa_id: destinoId }).eq("etapa_id", origemId);
+    if (error) {
+      avisar("Não foi possível mover os negócios.");
+      agendarSync();
+      return false;
+    }
+    avisar(`${anteriores.length} negócio(s) movido(s).`, "ok");
+    return true;
+  };
+
   const excluirEtapa: DataCtx["excluirEtapa"] = async (id, destinoId) => {
     const temCards = cardsRef.current.some((c) => c.etapa_id === id);
     if (temCards) {
@@ -424,6 +440,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         atualizarEtapa,
         moverColuna,
         excluirEtapa,
+        moverTodosDaColuna,
         criarPipeline,
         atualizarPipeline,
         excluirPipeline,
