@@ -178,7 +178,7 @@ function TagModal({
   usoAtual: { leads: number; negocios: number } | null;
   onClose: () => void;
 }) {
-  const { tagsConfig, leads, cards, salvarConfig, atualizarLead, atualizarOportunidade, avisar } = useData();
+  const { tagsConfig, salvarConfig, recarregar, avisar } = useData();
   const [nome, setNome] = useState(tag?.nome ?? "");
   const [cor, setCor] = useState(tag?.cor ?? COR_PADRAO);
   const [erro, setErro] = useState<string | null>(null);
@@ -186,24 +186,24 @@ function TagModal({
   const renomeando = !!tag && nome.trim() !== "" && nome.trim() !== tag.nome;
 
   async function salvar() {
+    if (salvando) return; // Enter duas vezes não grava duas vezes
     setErro(null);
     const n = nome.trim();
     if (!n) return setErro("Informe o nome da tag.");
     if (tagsConfig.some((t) => t.id !== tag?.id && chave(t.nome) === chave(n))) return setErro("Já existe uma tag com esse nome.");
     setSalvando(true);
     const ok = await salvarConfig("tags", tag ? { id: tag.id, nome: n, cor } : { nome: n, cor });
-    // renomeou: troca o nome também nos leads e negócios que usam a tag
+    // renomeou: o banco troca o nome em todos os leads e negócios que usam a tag (inclusive na lixeira)
+    let trocou = true;
     if (ok && tag && renomeando) {
-      const troca = (lista: string[]) => lista.map((t) => (chave(t) === chave(tag.nome) ? n : t));
-      const usa = (lista: string[] | null) => (lista ?? []).some((t) => chave(t) === chave(tag.nome));
-      await Promise.all([
-        ...leads.filter((l) => usa(l.tags)).map((l) => atualizarLead(l.id, { tags: troca(l.tags) })),
-        ...cards.filter((c) => usa(c.tags)).map((c) => atualizarOportunidade(c.id, { tags: troca(c.tags) })),
-      ]);
+      const { error } = await supabase.rpc("renomear_tag", { antigo: tag.nome, novo: n });
+      trocou = !error;
+      await recarregar();
     }
     setSalvando(false);
     if (ok) {
-      avisar(tag ? "Tag atualizada." : "Tag criada.", "ok");
+      if (trocou) avisar(tag ? "Tag atualizada." : "Tag criada.", "ok");
+      else avisar("A tag foi renomeada, mas não foi possível atualizar os leads e negócios que a usam.");
       onClose();
     }
   }

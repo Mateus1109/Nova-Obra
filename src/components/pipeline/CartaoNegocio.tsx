@@ -7,6 +7,7 @@ import { Avatar, SeloTipo, Tag } from "@/components/ui";
 import { SeloStatus } from "@/components/StatusNegocio";
 import { ICONE_ATIVIDADE, atrasada, quandoAtividade } from "@/components/Atividades";
 import { CampoTags } from "@/components/NovoLead";
+import { useAuth } from "@/lib/auth";
 import { brl, cx, dataBR } from "@/lib/utils";
 import { statusDe } from "./pecas";
 
@@ -46,6 +47,8 @@ export function KanbanCard({ arrastavel, onOpen, ...p }: Props & { arrastavel: b
 /** Aparência do card (também usada na cópia que segue o cursor durante o arraste) */
 export function CartaoNegocio({ card, numero, atividade, onAtividade, sobreposto }: Props & { sobreposto?: boolean }) {
   const { atualizarOportunidade, corTag } = useData();
+  // editar tags é alterar o negócio: só quem pode mover no funil (mesma regra do banco)
+  const podeEditar = useAuth().pode("mover_funil");
   const [tags, setTags] = useState(false);
   const nome = tituloCard(card);
   const status = statusDe(card);
@@ -127,11 +130,13 @@ export function CartaoNegocio({ card, numero, atividade, onAtividade, sobreposto
             </Tag>
           ))}
         </div>
-        <button onClick={() => setTags((v) => !v)} className="text-slate-500 hover:text-aco-600" aria-label="Tags">
-          <Tags size={18} />
-        </button>
+        {podeEditar && (
+          <button onClick={() => setTags((v) => !v)} className="text-slate-500 hover:text-aco-600" aria-label="Tags">
+            <Tags size={18} />
+          </button>
+        )}
       </div>
-      {tags && !sobreposto && (
+      {tags && podeEditar && !sobreposto && (
         <div className="mt-2" {...naoArrasta}>
           <CampoTags tags={card.tags ?? []} onChange={(t) => atualizarOportunidade(card.id, { tags: t })} />
         </div>

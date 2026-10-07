@@ -88,6 +88,9 @@ export function Modal({
           wide ? "sm:max-w-3xl" : "sm:max-w-lg"
         )}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
           <h3 className="text-lg font-bold text-marinho-800">{title}</h3>
@@ -208,12 +211,25 @@ export function CampoEditavel({
   // valor antigo que saiu da configuração continua aparecendo na lista
   if (ops && atual && !ops.some((o) => o.valor === atual)) ops.unshift({ valor: atual, rotulo: atual });
 
+  const numerico = tipo === "number" && !ops;
+  // número no formato brasileiro ("2.500", "2.500,5", "12,5"); null = digitação inválida
+  const normal = (s: string) => (numerico ? (s.trim() ? numeroBR(s) : "") : s.trim());
+
   // cada edição termina uma vez só (Enter seguido do blur não salva duas vezes; Esc não salva)
   const terminar = (el: ElCampo, gravar: boolean, novo = el.value) => {
     if (el.dataset.fim) return;
     el.dataset.fim = "1";
     setEditando(false);
-    if (gravar && novo.trim() !== atual.trim()) onSalvar(novo.trim());
+    if (!gravar || (el as HTMLInputElement).validity?.badInput) return;
+    const v = normal(novo);
+    if (v === null) return;
+    // o editor pode abrir vazio quando o valor antigo não cabe nele (ex.: texto num campo de data): sem mudança, não apaga
+    if (el.dataset.ini !== undefined && v === normal(el.dataset.ini)) return;
+    if (v !== atual.trim()) onSalvar(v);
+  };
+  // guarda o valor com que o editor abriu (já ajustado pelo navegador)
+  const marcarInicio = (el: ElCampo | null) => {
+    if (el && el.dataset.ini === undefined) el.dataset.ini = el.value;
   };
   const teclas = (e: React.KeyboardEvent<ElCampo>) => {
     if (e.key === "Escape") {
@@ -268,6 +284,7 @@ export function CampoEditavel({
   ) : tipo === "textarea" ? (
     <textarea
       autoFocus
+      ref={marcarInicio}
       defaultValue={atual}
       rows={4}
       onBlur={(e) => terminar(e.currentTarget, true)}
@@ -277,10 +294,10 @@ export function CampoEditavel({
   ) : (
     <input
       autoFocus
-      type={tipo}
-      defaultValue={atual}
-      inputMode={tipo === "number" ? "decimal" : undefined}
-      step={tipo === "number" ? "any" : undefined}
+      ref={marcarInicio}
+      type={numerico ? "text" : tipo}
+      defaultValue={numerico && atual && !isNaN(Number(atual)) ? Number(atual).toLocaleString("pt-BR", { useGrouping: false, maximumFractionDigits: 10 }) : atual}
+      inputMode={numerico ? "decimal" : undefined}
       onBlur={(e) => terminar(e.currentTarget, true)}
       onKeyDown={teclas}
       onFocus={tipo === "date" ? abrirSeletor : undefined}
@@ -360,4 +377,13 @@ export function CampoEditavel({
       )}
     </div>
   );
+}
+
+/** "2.500" → "2500", "2.500,5" → "2500.5", "12,5" → "12.5"; null quando não é número */
+export function numeroBR(s: string): string | null {
+  let t = s.replace(/\s|R\$/g, "");
+  if (t.includes(",")) t = t.replace(/\./g, "").replace(",", ".");
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, "");
+  const n = Number(t);
+  return t !== "" && Number.isFinite(n) ? String(n) : null;
 }

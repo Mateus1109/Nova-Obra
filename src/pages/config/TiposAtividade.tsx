@@ -125,6 +125,7 @@ function TipoModal({ tipo, onClose }: { tipo: TipoAtividadeConfig | null; onClos
   const [salvando, setSalvando] = useState(false);
 
   async function salvar() {
+    if (salvando) return; // Enter duas vezes não grava duas vezes
     setErro(null);
     const n = nome.trim();
     if (!n) return setErro("Informe o nome do tipo.");

@@ -165,6 +165,7 @@ function PipelineModal({ pipeline, onClose }: { pipeline: Pipeline | null; onClo
   const grupos = useMemo(() => Array.from(new Set(pipelines.map((p) => p.grupo || "Padrão"))).sort(), [pipelines]);
 
   async function salvar() {
+    if (salvando) return; // Enter duas vezes não grava duas vezes
     setErro(null);
     const n = nome.trim();
     if (!n) return setErro("Informe o nome do pipeline.");
@@ -264,6 +265,7 @@ function DuplicarModal({ pipeline, onClose }: { pipeline: Pipeline; onClose: () 
   const [salvando, setSalvando] = useState(false);
 
   async function duplicar() {
+    if (salvando) return; // Enter duas vezes não grava duas vezes
     if (!nome.trim()) return;
     setSalvando(true);
     const id = await duplicarPipeline(pipeline.id, nome.trim());

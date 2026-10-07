@@ -274,7 +274,7 @@ export function ExcluirColuna({ etapa, colunas, onClose }: { etapa: Etapa; colun
               disabled={excluindo}
               onClick={async () => {
                 setExcluindo(true);
-                await excluirEtapa(etapa.id, qtd > 0 ? destino : null);
+                await excluirEtapa(etapa.id, destino || null);
                 onClose();
               }}
             >

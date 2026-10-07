@@ -170,7 +170,7 @@ export function AcoesEmMassa({ acao, pipeline, onClose }: { acao: AcaoMassa; pip
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-marinho-900/50 sm:items-center sm:p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-marinho-900/50 sm:items-center sm:p-4" onClick={onClose} aria-modal="true">
         <div
           className="flex h-[92vh] w-full flex-col overflow-hidden rounded-t-2xl bg-white shadow-cardhover sm:h-auto sm:max-h-[88vh] sm:max-w-5xl sm:rounded-lg"
           onClick={(e) => e.stopPropagation()}

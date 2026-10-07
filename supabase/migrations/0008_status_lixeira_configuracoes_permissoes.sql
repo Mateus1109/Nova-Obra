@@ -133,7 +133,7 @@ end; $$;
 create trigger trg_oport_status_guarda before update on public.oportunidades
   for each row execute function public.oport_status_guarda();
 
--- registrar_historico_oport: passa a registrar ganho/perdido/restaurado e lixeira (ver produção)
+-- registrar_historico_oport: passa a registrar ganho/perdido/restaurado e lixeira (ver 0011)
 
 -- Negócios já em colunas de ganho/perda recebem o status correspondente
 update public.oportunidades o set status = e.tipo

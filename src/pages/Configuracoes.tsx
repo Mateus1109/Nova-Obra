@@ -54,7 +54,7 @@ const SECOES: Secao[] = [
   { key: "listas", label: "Listas", desc: "Opções de origem e segmento", icon: ListChecks, Componente: Listas, acesso: soAdmin },
   { key: "campos-adicionais", label: "Campos adicionais", desc: "Campos extras de leads e negócios", icon: TextCursorInput, Componente: CamposAdicionais, acesso: soAdmin },
   { key: "tipos-atividade", label: "Tipos de atividades", desc: "Ligação, visita, reunião...", icon: CalendarCheck, Componente: TiposAtividade, acesso: soAdmin },
-  { key: "lixeira", label: "Lixeira", desc: "Restaurar ou apagar negócios excluídos", icon: Trash2, Componente: Lixeira, acesso: (a) => a.isAdmin || a.pode("excluir_obras") },
+  { key: "lixeira", label: "Lixeira", desc: "Restaurar ou apagar negócios excluídos", icon: Trash2, Componente: Lixeira, acesso: (a) => a.isAdmin || (a.pode("excluir_obras") && a.pode("mover_funil")) },
 ];
 
 /** Quantos cadastros aguardam liberação (só para o administrador) */

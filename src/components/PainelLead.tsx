@@ -108,6 +108,8 @@ export default function PainelLead({
       if (e.key !== "Escape") return;
       // Esc dentro de um campo só sai do campo
       if ((e.target as HTMLElement | null)?.closest?.("input, textarea, select")) return;
+      // com um modal aberto por cima (nova atividade, perder...), o Esc não fecha o painel
+      if (document.querySelector('[aria-modal="true"]')) return;
       onClose();
     };
     window.addEventListener("keydown", esc);
@@ -365,7 +367,8 @@ function BlocoStatus({ card, onExcluido }: { card: Card; onExcluido: () => void 
   const { motivosPerda, ganharNegocios, restaurarStatus, excluirNegocios } = useData();
   const { pode } = useAuth();
   const podeMover = pode("mover_funil");
-  const podeExcluir = pode("excluir_obras");
+  // ir para a lixeira é uma alteração do negócio: o banco exige também "mover no funil"
+  const podeExcluir = pode("excluir_obras") && podeMover;
   const [perder, setPerder] = useState(false);
   const [excluir, setExcluir] = useState(false);
   const [ocupado, setOcupado] = useState(false);
@@ -609,26 +612,35 @@ function NotasLead({ lead }: { lead: Lead }) {
 function LinhaContato({ rotulo, valor, tipo, onSalvar }: { rotulo: string; valor: string; tipo: "email" | "tel"; onSalvar: (v: string) => void }) {
   const [editando, setEditando] = useState(false);
   const [v, setV] = useState(valor);
-  const salvar = () => {
+  // termina uma vez só: Enter seguido do blur não salva duas vezes; Esc cancela
+  const terminar = (el: HTMLInputElement, gravar: boolean) => {
+    if (el.dataset.fim) return;
+    el.dataset.fim = "1";
     setEditando(false);
-    if (v.trim() !== valor) onSalvar(v.trim());
+    if (gravar && v.trim() !== valor) onSalvar(v.trim());
   };
   return (
-    <div className="group flex items-center gap-6 px-5 py-3.5">
-      <span className="w-28 flex-shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{rotulo}</span>
+    <div className="group flex items-center gap-3 px-5 py-3.5 sm:gap-6">
+      <span className="w-24 flex-shrink-0 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500 sm:w-28">{rotulo}</span>
       {editando ? (
         <input
           autoFocus
           type={tipo}
           value={v}
           onChange={(e) => setV(e.target.value)}
-          onBlur={salvar}
-          onKeyDown={(e) => e.key === "Enter" && salvar()}
-          className="flex-1 rounded-md border border-[#D7DBDF] px-3 py-1.5 text-sm outline-none focus:border-aco-500"
+          onBlur={(e) => terminar(e.currentTarget, true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") terminar(e.currentTarget, true);
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              terminar(e.currentTarget, false);
+            }
+          }}
+          className="min-w-0 flex-1 rounded-md border border-[#D7DBDF] px-3 py-1.5 text-sm outline-none focus:border-aco-500"
         />
       ) : (
-        <button onClick={() => { setV(valor); setEditando(true); }} className="flex flex-1 items-center gap-2 text-left">
-          {valor ? <span className="font-medium text-marinho-800">{valor}</span> : <span className="italic text-slate-400">Não informado</span>}
+        <button onClick={() => { setV(valor); setEditando(true); }} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          {valor ? <span className="min-w-0 font-medium text-marinho-800 [overflow-wrap:anywhere]">{valor}</span> : <span className="italic text-slate-400">Não informado</span>}
           <Pencil size={13} className="text-slate-300 opacity-0 group-hover:opacity-100" />
         </button>
       )}
@@ -686,7 +698,7 @@ function SecaoNegocio({ card }: { card: Card }) {
             <div className="space-y-3">
               <p className="text-sm text-slate-600">Nenhuma obra vinculada a este negócio.</p>
               <div className="flex gap-2">
-                <Select value={obraSel} onChange={(e) => setObraSel(e.target.value)}>
+                <Select value={obraSel} onChange={(e) => setObraSel(e.target.value)} className="min-w-0 flex-1">
                   <option value="">Escolha uma obra cadastrada...</option>
                   {obras.map((o) => (
                     <option key={o.id} value={o.id}>{o.nome_obra}{o.bairro ? ` — ${o.bairro}` : ""}</option>

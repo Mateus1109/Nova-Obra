@@ -4,7 +4,7 @@ import {
   DndContext,
   DragOverlay,
   MeasuringStrategy,
-  PointerSensor,
+  MouseSensor,
   TouchSensor,
   pointerWithin,
   rectIntersection,
@@ -67,6 +67,8 @@ const colisao: CollisionDetection = (args) => {
   const zona = sob.find((c) => ehZona(c.id));
   if (zona) return [zona];
   if (sob.length) return sob;
+  // soltar fora de qualquer coluna ou bloco cancela o arraste
+  if (args.pointerCoordinates) return [];
   return rectIntersection(args).filter((c) => !ehZona(c.id));
 };
 
@@ -108,7 +110,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
   const { cards, etapas, vendedores, atividades, moverEtapa, ganharNegocios, excluirNegocios, avisar } = useData();
   const { isAdmin, pode } = useAuth();
   const podeMover = pode("mover_funil");
-  const podeExcluir = pode("excluir_obras");
+  const podeExcluir = pode("excluir_obras") && podeMover;
 
   const colunas = useMemo(() => etapas.filter((e) => e.pipeline_id === pipeline.id), [etapas, pipeline.id]);
   const idsColunas = useMemo(() => new Set(colunas.map((c) => c.id)), [colunas]);
@@ -123,7 +125,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
   });
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<Ordem>("recentes");
-  const [intervalo, setIntervalo] = useState<Intervalo>("365");
+  const [intervalo, setIntervalo] = useState<Intervalo>("tudo");
   const [fStatus, setFStatus] = useState<FiltroStatus>("aberto");
   const [fVendedor, setFVendedor] = useState("");
   const [fTag, setFTag] = useState("");
@@ -205,7 +207,8 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
   }, [semStatus]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    // MouseSensor (e não PointerSensor): no celular o toque fica com o TouchSensor (segurar e arrastar)
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } })
   );
 
@@ -432,7 +435,8 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
           </div>
           <DragOverlay dropAnimation={null}>
             {cardArrastado && (
-              <div className="w-[min(19.75rem,78vw)]">
+              // menor enquanto arrasta, para não cobrir a barra Ganhar / Perder / Excluir
+              <div className="w-[min(19.75rem,78vw)] origin-center scale-[0.6] opacity-95 sm:scale-75">
                 <CartaoNegocio card={cardArrastado} numero={numero.get(cardArrastado.id) ?? 0} atividade={proxAtividade.get(cardArrastado.id)} sobreposto />
               </div>
             )}

@@ -40,7 +40,8 @@ export function MenuPipeline({
 }) {
   const { isAdmin, pode } = useAuth();
   const podeMover = pode("mover_funil");
-  const podeExcluir = pode("excluir_obras");
+  // ir para a lixeira é uma alteração do negócio: o banco exige também "mover no funil"
+  const podeExcluir = pode("excluir_obras") && podeMover;
   const abrir = (m: ModalPipeline) => {
     onClose();
     onModal(m);

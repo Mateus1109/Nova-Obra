@@ -227,13 +227,16 @@ export function NovoLeadModal({
   const { leads, criarLead, atualizarLead, avisar, opcoesLista } = useData();
   const [tipo, setTipo] = useState<TipoLead>(tipoInicial);
   const [mais, setMais] = useState(false);
+  // segmento padrão segue a lista de Configurações (Construtora quando existir)
+  const segmentos = opcoesLista("segmento");
+  const segPadrao = segmentos.find((x) => x.toLowerCase() === "construtora") ?? segmentos[0] ?? "";
   const [f, setF] = useState({
     nome: nomeInicial,
     nome_exibicao: "",
     telefone: "",
     email: "",
     documento: "",
-    segmento: "Construtora",
+    segmento: segPadrao,
     cargo: "",
     origem: "",
     data_referencia: "",
@@ -293,7 +296,7 @@ export function NovoLeadModal({
       const existente = empresas.find((e) => [e.nome, e.nome_exibicao].some((n) => n.toLowerCase() === empresaNova.trim().toLowerCase()));
       if (existente) empresaFinal = existente.id;
       else {
-        const nova = await criarLead({ tipo: "empresa", nome: empresaNova.trim(), segmento: "Construtora" });
+        const nova = await criarLead({ tipo: "empresa", nome: empresaNova.trim(), segmento: segPadrao });
         if (nova) empresaFinal = nova.id;
       }
     }
@@ -320,7 +323,7 @@ export function NovoLeadModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-marinho-900/50 sm:items-center sm:p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-marinho-900/50 sm:items-center sm:p-4" onClick={onClose} aria-modal="true">
       <div
         className="flex max-h-[94vh] w-full flex-col rounded-t-2xl bg-white shadow-cardhover sm:max-w-2xl sm:rounded-lg"
         onClick={(e) => e.stopPropagation()}

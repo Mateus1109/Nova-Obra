@@ -103,6 +103,7 @@ function MotivoModal({ motivo, onClose }: { motivo: MotivoPerda | null; onClose:
   const [salvando, setSalvando] = useState(false);
 
   async function salvar() {
+    if (salvando) return; // Enter duas vezes não grava duas vezes
     setErro(null);
     const n = nome.trim();
     if (!n) return setErro("Informe o motivo.");

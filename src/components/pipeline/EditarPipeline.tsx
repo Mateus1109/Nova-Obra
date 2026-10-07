@@ -83,6 +83,7 @@ export function DuplicarPipeline({ pipeline, onClose }: { pipeline: Pipeline; on
   const [salvando, setSalvando] = useState(false);
 
   async function duplicar() {
+    if (salvando) return; // Enter duas vezes não grava duas vezes
     if (!nome.trim()) return;
     setSalvando(true);
     const id = await duplicarPipeline(pipeline.id, nome.trim());

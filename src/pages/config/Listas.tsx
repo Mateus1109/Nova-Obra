@@ -89,10 +89,14 @@ function ListaCard({ lista, titulo, desc, exemplo }: (typeof LISTAS)[number]) {
                   autoFocus
                   defaultValue={o.valor}
                   className="py-1.5"
-                  onBlur={(e) => renomear(o, e.target.value)}
+                  onBlur={(e) => !e.currentTarget.dataset.fim && renomear(o, e.currentTarget.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                    if (e.key === "Escape") setEditandoId(null);
+                    if (e.key === "Enter") e.currentTarget.blur();
+                    if (e.key === "Escape") {
+                      // remover o campo dispara um blur: marcado para não salvar
+                      e.currentTarget.dataset.fim = "1";
+                      setEditandoId(null);
+                    }
                   }}
                 />
               ) : (

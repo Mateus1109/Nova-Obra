@@ -189,6 +189,7 @@ function CampoModal({
   };
 
   async function salvar() {
+    if (salvando) return; // Enter duas vezes não grava duas vezes
     setErro(null);
     const n = nome.trim();
     if (!n) return setErro("Informe o nome do campo.");

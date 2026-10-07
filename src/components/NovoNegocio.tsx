@@ -164,7 +164,7 @@ export function NovoNegocioModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-marinho-900/50 sm:items-center sm:p-4" onClick={onClose}>
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-marinho-900/50 sm:items-center sm:p-4" onClick={onClose} aria-modal="true">
         <div className="flex max-h-[94vh] w-full flex-col rounded-t-2xl bg-white shadow-cardhover sm:max-w-xl sm:rounded-lg" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-start justify-between px-6 pt-5">
             <div>

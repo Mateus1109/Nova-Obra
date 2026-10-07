@@ -28,6 +28,8 @@ export interface Card extends Oportunidade {
 }
 
 /** Nome que aparece no card: o lead (construtora/cliente) ou, sem lead, a obra */
+const SEM_PERMISSAO = "Você não tem permissão para alterar este negócio.";
+
 export const tituloCard = (c: Card) => c.lead?.nome_exibicao || c.lead?.nome || c.obra?.nome_obra || "Sem nome";
 
 export interface NovoNegocio {
@@ -256,10 +258,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const anterior = cardsRef.current.find((c) => c.id === id);
     marcarEditado(id);
     setCards((cs) => cs.map((c) => (c.id === id ? { ...c, ...mudanca } : c)));
-    const { error } = await supabase.from("oportunidades").update(mudanca).eq("id", id);
-    if (error) {
+    const { data, error } = await supabase.from("oportunidades").update(mudanca).eq("id", id).select("id");
+    // sem erro e sem linha devolvida = a regra de acesso do banco recusou a alteração
+    if (error || !data?.length) {
       if (anterior) setCards((cs) => cs.map((c) => (c.id === id ? anterior : c)));
-      avisar("Não foi possível salvar a alteração. Verifique sua conexão.");
+      avisar(error ? "Não foi possível salvar a alteração. Verifique sua conexão." : SEM_PERMISSAO);
     }
   };
 
@@ -367,8 +370,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const excluirEtapa: DataCtx["excluirEtapa"] = async (id, destinoId) => {
     const temCards = cardsRef.current.some((c) => c.etapa_id === id);
-    if (temCards) {
-      if (!destinoId) return avisar("Escolha para qual coluna mover os cards.");
+    if (temCards && !destinoId) return avisar("Escolha para qual coluna mover os cards.");
+    // move também os negócios da lixeira (eles impedem apagar a coluna)
+    if (destinoId) {
       setCards((cs) => cs.map((c) => (c.etapa_id === id ? comColuna(c, destinoId) : c)));
       const { error } = await supabase.from("oportunidades").update({ etapa_id: destinoId }).eq("etapa_id", id);
       if (error) {
@@ -422,6 +426,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (cardsRef.current.some((c) => colunas.has(c.etapa_id))) {
       avisar("Mova ou exclua os negócios deste pipeline antes de apagá-lo.");
       return false;
+    }
+    if (colunas.size) {
+      const { count } = await supabase
+        .from("oportunidades")
+        .select("id", { count: "exact", head: true })
+        .in("etapa_id", Array.from(colunas));
+      if (count) {
+        avisar(`Há ${count} negócio(s) deste pipeline na lixeira. Exclua-os definitivamente em Configurações → Lixeira antes.`);
+        return false;
+      }
     }
     const { error } = await supabase.from("pipelines").delete().eq("id", id);
     if (error) {
@@ -552,9 +566,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!ids.length) return true;
     ids.forEach(marcarEditado);
     setCards((cs) => cs.map((c) => (ids.includes(c.id) ? { ...c, ...mudanca } : c)));
-    const { error } = await supabase.from("oportunidades").update(mudanca).in("id", ids);
-    if (error) {
-      avisar(/permiss/i.test(error.message) ? error.message : msgErro);
+    const { data, error } = await supabase.from("oportunidades").update(mudanca).in("id", ids).select("id");
+    if (error || (data?.length ?? 0) < ids.length) {
+      avisar(error ? (/permiss/i.test(error.message) ? error.message : msgErro) : SEM_PERMISSAO);
       agendarSync();
       return false;
     }
@@ -600,10 +614,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const anteriores = cardsRef.current.filter((c) => ids.includes(c.id));
     ids.forEach(marcarEditado);
     setCards((cs) => cs.filter((c) => !ids.includes(c.id)));
-    const { error } = await supabase.from("oportunidades").update({ excluido_em: new Date().toISOString() }).in("id", ids);
-    if (error) {
-      setCards((cs) => [...anteriores, ...cs]);
-      avisar(/permiss/i.test(error.message) ? error.message : "Não foi possível excluir.");
+    const { data, error } = await supabase
+      .from("oportunidades")
+      .update({ excluido_em: new Date().toISOString() })
+      .in("id", ids)
+      .select("id");
+    if (error || (data?.length ?? 0) < ids.length) {
+      setCards((cs) => [...anteriores.filter((a) => !cs.some((c) => c.id === a.id)), ...cs]);
+      avisar(error ? (/permiss/i.test(error.message) ? error.message : "Não foi possível excluir.") : SEM_PERMISSAO);
+      agendarSync();
       return false;
     }
     avisar(plural(ids.length, "Negócio enviado para a lixeira.", "negócios enviados para a lixeira"), "ok");
@@ -611,9 +630,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const restaurarDaLixeira: DataCtx["restaurarDaLixeira"] = async (ids) => {
-    const { error } = await supabase.from("oportunidades").update({ excluido_em: null }).in("id", ids);
-    if (error) {
-      avisar(/permiss/i.test(error.message) ? error.message : "Não foi possível restaurar.");
+    const { data, error } = await supabase.from("oportunidades").update({ excluido_em: null }).in("id", ids).select("id");
+    if (error || (data?.length ?? 0) < ids.length) {
+      avisar(error ? (/permiss/i.test(error.message) ? error.message : "Não foi possível restaurar.") : SEM_PERMISSAO);
+      await recarregar();
       return false;
     }
     await recarregar();
@@ -622,9 +642,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const excluirDefinitivo: DataCtx["excluirDefinitivo"] = async (ids) => {
-    const { error } = await supabase.from("oportunidades").delete().in("id", ids);
-    if (error) {
-      avisar("Não foi possível excluir definitivamente.");
+    const { data, error } = await supabase.from("oportunidades").delete().in("id", ids).select("id");
+    if (error || (data?.length ?? 0) < ids.length) {
+      avisar(error ? "Não foi possível excluir definitivamente." : "Você não tem permissão para excluir estes negócios.");
       return false;
     }
     avisar(plural(ids.length, "Negócio excluído definitivamente.", "negócios excluídos definitivamente"), "ok");
@@ -649,11 +669,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const colunas = etapasRef.current
       .filter((e) => e.pipeline_id === id)
       .map((e) => ({ nome: e.nome, cor: e.cor, ordem: e.ordem, tipo: e.tipo, requisitos: e.requisitos ?? [], pipeline_id: data.id }));
-    if (colunas.length) await supabase.from("etapas").insert(colunas);
+    const r1 = colunas.length ? await supabase.from("etapas").insert(colunas) : { error: null };
     const membros = pipelineMembros.filter((m) => m.pipeline_id === id).map((m) => ({ pipeline_id: data.id, usuario_id: m.usuario_id }));
-    if (membros.length) await supabase.from("pipeline_membros").insert(membros);
+    const r2 = membros.length ? await supabase.from("pipeline_membros").insert(membros) : { error: null };
     await recarregar();
-    avisar(`Pipeline "${nome}" criado.`, "ok");
+    if (r1.error || r2.error) avisar(`Pipeline "${nome}" criado, mas ${r1.error ? "as colunas" : "as permissões"} não foram copiadas por completo.`);
+    else avisar(`Pipeline "${nome}" criado.`, "ok");
     return data.id as string;
   };
 
@@ -661,13 +682,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const atuais = pipelineMembros.filter((m) => m.pipeline_id === id).map((m) => m.usuario_id);
     const sair = atuais.filter((u) => !usuarioIds.includes(u));
     const entrar = usuarioIds.filter((u) => !atuais.includes(u));
-    const r1 = await supabase.from("pipelines").update({ restrito }).eq("id", id);
-    const r2 = sair.length
-      ? await supabase.from("pipeline_membros").delete().eq("pipeline_id", id).in("usuario_id", sair)
-      : { error: null };
+    // membros antes da trava: se algo falhar, o pipeline não fica restrito sem ninguém com acesso
     const r3 = entrar.length
       ? await supabase.from("pipeline_membros").insert(entrar.map((u) => ({ pipeline_id: id, usuario_id: u })))
       : { error: null };
+    const r2 = sair.length
+      ? await supabase.from("pipeline_membros").delete().eq("pipeline_id", id).in("usuario_id", sair)
+      : { error: null };
+    const r1 = r3.error ? r3 : await supabase.from("pipelines").update({ restrito }).eq("id", id);
     await recarregar();
     if (r1.error || r2.error || r3.error) {
       avisar("Não foi possível salvar as permissões.");
