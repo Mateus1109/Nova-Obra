@@ -50,7 +50,7 @@ export default function FichaObra({
 }) {
   const { isAdmin, pode } = useAuth();
   const podeMover = pode("mover_funil");
-  const { etapas, vendedores, visitas, atualizarObra, atualizarOportunidade, setResponsavel, setClassificacao } =
+  const { etapas, vendedores, atualizarObra, atualizarOportunidade, setResponsavel, setClassificacao } =
     useData();
   const o = card.obra;
   const [editando, setEditando] = useState(false);
@@ -70,7 +70,6 @@ export default function FichaObra({
     };
   }, [o.id]);
 
-  const agendadas = visitas.filter((v) => v.obra_id === o.id && v.status_visita === "agendada");
   const wa = linkWhatsApp(o.contato_telefone);
   const etapa = etapas.find((e) => e.id === card.etapa_id);
 
@@ -202,13 +201,6 @@ export default function FichaObra({
             </div>
           )}
         </>
-      )}
-
-      {/* Visitas agendadas */}
-      {agendadas.length > 0 && (
-        <div className="mt-5 rounded-xl bg-aco-50 p-3 text-sm text-marinho-800">
-          <b>Visita agendada:</b> {agendadas.map((v) => dataBR(v.data_visita)).join(", ")}
-        </div>
       )}
 
       {/* Histórico */}

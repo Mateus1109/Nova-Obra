@@ -68,7 +68,7 @@ export default function Login() {
             Aquisição de obras e gestão de visitas de vendedores
           </h1>
           <p className="mt-4 max-w-md text-aco-100">
-            Prospecte obras, distribua visitas por dia, acompanhe o funil no kanban e meça a
+            Prospecte obras, registre cada visita com foto e localização, acompanhe o funil no kanban e meça a
             produtividade da equipe — tudo em um só lugar.
           </p>
         </div>

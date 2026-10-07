@@ -43,7 +43,7 @@ export const PERMISSOES: { key: Permissao; label: string; desc: string }[] = [
   { key: "mover_funil", label: "Mover cards no funil", desc: "Muda etapa, temperatura e dados da obra" },
   { key: "ver_todas_obras", label: "Ver todas as obras", desc: "Enxerga o funil inteiro, não só as obras dele" },
   { key: "excluir_obras", label: "Excluir obras", desc: "Apaga obras e oportunidades" },
-  { key: "ver_relatorios_equipe", label: "Ver relatórios da equipe", desc: "Vê visitas e fotos de todos os vendedores" },
+  { key: "ver_relatorios_equipe", label: "Ver relatórios da equipe", desc: "Vê visitas, fotos e PDFs de todos os vendedores" },
   { key: "ver_painel", label: "Ver painel comercial", desc: "Acessa o painel com números e gráficos" },
 ];
 
@@ -185,7 +185,7 @@ export const STATUS_VISITA_LABEL: Record<StatusVisita, string> = {
 };
 
 // ---------- Relatórios de visita ----------
-export type TipoRelatorio = "cliente" | "aquisicao";
+export type TipoRelatorio = "cliente" | "novo_cliente" | "aquisicao";
 export type ResultadoVisita =
   | "pedido_fechado"
   | "proposta_solicitada"
@@ -228,6 +228,7 @@ export interface RelatorioVisita {
 
 export const TIPO_RELATORIO: Record<TipoRelatorio, { label: string; curto: string; bg: string; fg: string }> = {
   cliente: { label: "Visita a cliente", curto: "Cliente", bg: "#dcfce7", fg: "#15803d" },
+  novo_cliente: { label: "Novo cliente", curto: "Novo cliente", bg: "#fef3c7", fg: "#b45309" },
   aquisicao: { label: "Aquisição de nova obra", curto: "Nova obra", bg: "#dbeafe", fg: "#1d4ed8" },
 };
 

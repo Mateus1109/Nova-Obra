@@ -18,9 +18,12 @@ import {
   Building2,
   Images,
   Trophy,
+  FileDown,
+  UserPlus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { BUCKET_FOTOS, useUrls } from "@/lib/fotos";
+import { exportarRelatoriosPDF } from "@/lib/pdfRelatorio";
 import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/data";
 import { Badge, Button, Card, Empty, Field, Input, Modal, Select, Spinner, Textarea } from "@/components/ui";
@@ -43,6 +46,30 @@ import { comprimirImagem, cx, dataBR, hojeISO, isoLocal, mapsLink } from "@/lib/
 
 const BUCKET = BUCKET_FOTOS;
 const MAX_FOTOS = 10;
+
+const ROTULO_PERIODO = { "7": "Últimos 7 dias", "30": "Últimos 30 dias", mes: "Este mês", todos: "Todo o período" };
+
+const ICONE_TIPO: Record<TipoRelatorio, typeof Handshake> = {
+  cliente: Handshake,
+  novo_cliente: UserPlus,
+  aquisicao: Building2,
+};
+
+/** Endereço aproximado a partir do GPS (OpenStreetMap). Melhor esforço: se falhar, segue sem. */
+async function enderecoDoGps(lat: number, lng: number): Promise<{ endereco: string; bairro: string } | null> {
+  try {
+    const r = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&accept-language=pt-BR&lat=${lat}&lon=${lng}`
+    );
+    if (!r.ok) return null;
+    const a = (await r.json()).address ?? {};
+    const rua = [a.road, a.house_number].filter(Boolean).join(", ");
+    const bairro = a.suburb || a.neighbourhood || a.quarter || a.city_district || "";
+    return { endereco: rua, bairro };
+  } catch {
+    return null;
+  }
+}
 
 /* ---------- Página ---------- */
 
@@ -90,7 +117,7 @@ export default function Relatorios() {
     };
   }, [carregar]);
 
-  // Atalho vindo de "Visitas do dia": /relatorios?obra=<id>
+  // Atalho vindo da ficha da obra: /relatorios?obra=<id>
   useEffect(() => {
     const obraId = new URLSearchParams(loc.search).get("obra");
     if (!obraId || !obras.length) return;
@@ -122,11 +149,11 @@ export default function Relatorios() {
   }, [lista, desde, fVendedor, fTipo, fResultado, busca]);
 
   const kpi = useMemo(() => {
-    const clientes = filtrados.filter((r) => r.tipo === "cliente").length;
     return {
       total: filtrados.length,
-      clientes,
-      aquisicao: filtrados.length - clientes,
+      clientes: filtrados.filter((r) => r.tipo === "cliente").length,
+      novos: filtrados.filter((r) => r.tipo === "novo_cliente").length,
+      aquisicao: filtrados.filter((r) => r.tipo === "aquisicao").length,
       pedidos: filtrados.filter((r) => r.resultado === "pedido_fechado").length,
       propostas: filtrados.filter((r) => r.resultado === "proposta_solicitada").length,
       fotos: filtrados.reduce((s, r) => s + (r.fotos?.length ?? 0), 0),
@@ -143,6 +170,7 @@ export default function Relatorios() {
           nome: v.nome,
           total: meus.length,
           clientes: meus.filter((r) => r.tipo === "cliente").length,
+          novos: meus.filter((r) => r.tipo === "novo_cliente").length,
           aquisicao: meus.filter((r) => r.tipo === "aquisicao").length,
           pedidos: meus.filter((r) => r.resultado === "pedido_fechado").length,
           ultimo: meus[0]?.data_visita ?? null,
@@ -154,6 +182,25 @@ export default function Relatorios() {
   const visiveis = filtrados.slice(0, limite);
   const thumbs = useUrls(visiveis.map((r) => r.fotos?.[0]).filter(Boolean) as string[]);
   const detalhe = detalheId ? lista.find((r) => r.id === detalheId) ?? null : null;
+  const [gerandoPdf, setGerandoPdf] = useState<string | null>(null);
+
+  async function baixarPDF() {
+    setGerandoPdf("Preparando...");
+    try {
+      await exportarRelatoriosPDF(filtrados, {
+        periodo: ROTULO_PERIODO[periodo],
+        vendedor: fVendedor
+          ? vendedores.find((v) => v.id === fVendedor)?.nome ?? "-"
+          : isAdmin
+            ? "Todos os vendedores"
+            : profile?.nome ?? "-",
+        onProgresso: setGerandoPdf,
+      });
+    } catch {
+      window.alert("Não foi possível gerar o PDF. Tente de novo.");
+    }
+    setGerandoPdf(null);
+  }
 
   if (loading) return <Spinner />;
 
@@ -168,9 +215,14 @@ export default function Relatorios() {
         </div>
         <div className="flex flex-wrap gap-2">
           {filtrados.length > 0 && (
-            <Button variant="secondary" onClick={() => exportarCSV(filtrados)}>
-              <Download size={16} /> Exportar planilha
-            </Button>
+            <>
+              <Button variant="secondary" onClick={baixarPDF} disabled={!!gerandoPdf}>
+                <FileDown size={16} /> {gerandoPdf ?? `Baixar PDF (${filtrados.length})`}
+              </Button>
+              <Button variant="ghost" onClick={() => exportarCSV(filtrados)} title="Planilha para Excel">
+                <Download size={16} /> Planilha
+              </Button>
+            </>
           )}
           <Button size="lg" onClick={() => setNovo({})}>
             <Plus size={18} /> Registrar visita
@@ -181,10 +233,10 @@ export default function Relatorios() {
       {/* KPIs */}
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <Kpi label="Visitas" valor={kpi.total} cor="#173A5E" icon={<ClipboardList size={18} />} />
-        <Kpi label="Clientes" valor={kpi.clientes} cor="#16a34a" icon={<Handshake size={18} />} />
-        <Kpi label="Novas obras" valor={kpi.aquisicao} cor="#2E78A8" icon={<Building2 size={18} />} />
-        <Kpi label="Pedidos fechados" valor={kpi.pedidos} cor="#f59e0b" icon={<Trophy size={18} />} />
-        <Kpi label="Propostas" valor={kpi.propostas} cor="#7c3aed" icon={<Send size={18} />} />
+        <Kpi label="Visita a cliente" valor={kpi.clientes} cor="#16a34a" icon={<Handshake size={18} />} />
+        <Kpi label="Novo cliente" valor={kpi.novos} cor="#d97706" icon={<UserPlus size={18} />} />
+        <Kpi label="Nova obra" valor={kpi.aquisicao} cor="#2E78A8" icon={<Building2 size={18} />} />
+        <Kpi label="Pedidos fechados" valor={kpi.pedidos} cor="#7c3aed" icon={<Trophy size={18} />} />
         <Kpi label="Fotos" valor={kpi.fotos} cor="#64748b" icon={<Images size={18} />} />
       </div>
 
@@ -212,9 +264,10 @@ export default function Relatorios() {
           </Select>
         )}
         <Select value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
-          <option value="">Cliente e nova obra</option>
-          <option value="cliente">Só clientes</option>
-          <option value="aquisicao">Só aquisição de obra</option>
+          <option value="">Todos os tipos</option>
+          {(Object.keys(TIPO_RELATORIO) as TipoRelatorio[]).map((t) => (
+            <option key={t} value={t}>{TIPO_RELATORIO[t].label}</option>
+          ))}
         </Select>
         <Select value={fResultado} onChange={(e) => setFResultado(e.target.value)}>
           <option value="">Todo resultado</option>
@@ -238,6 +291,7 @@ export default function Relatorios() {
                   <th className="px-4 py-2">Vendedor</th>
                   <th className="px-3 py-2 text-center">Visitas</th>
                   <th className="px-3 py-2 text-center">Clientes</th>
+                  <th className="px-3 py-2 text-center">Novos</th>
                   <th className="px-3 py-2 text-center">Novas obras</th>
                   <th className="px-3 py-2 text-center">Pedidos</th>
                   <th className="px-4 py-2 text-right">Último relatório</th>
@@ -253,6 +307,7 @@ export default function Relatorios() {
                     <td className="px-4 py-2.5 font-semibold text-marinho-800">{r.nome}</td>
                     <td className="px-3 py-2.5 text-center font-bold text-marinho-700">{r.total}</td>
                     <td className="px-3 py-2.5 text-center">{r.clientes}</td>
+                    <td className="px-3 py-2.5 text-center">{r.novos}</td>
                     <td className="px-3 py-2.5 text-center">{r.aquisicao}</td>
                     <td className="px-3 py-2.5 text-center">{r.pedidos}</td>
                     <td
@@ -323,6 +378,7 @@ export default function Relatorios() {
                     </div>
                     <p className="mt-2 text-[11px] font-semibold text-slate-400">
                       {dataBR(r.data_visita)}
+                      {r.hora_inicio ? ` · ${r.hora_inicio.slice(0, 5)}` : ""}
                       {isAdmin && r.vendedor?.nome ? ` · ${r.vendedor.nome}` : ""}
                     </p>
                   </div>
@@ -434,6 +490,7 @@ function NovoRelatorio({
   const [bairro, setBairro] = useState("");
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gps, setGps] = useState<Gps>("buscando");
+  const [lugar, setLugar] = useState<{ endereco: string; bairro: string } | null>(null);
   const [fase, setFase] = useState<FaseObra | "">(obraInicial?.fase_obra ?? "");
   const [resultado, setResultado] = useState<ResultadoVisita>("em_negociacao");
   const [interesse, setInteresse] = useState<Classificacao>("morno");
@@ -459,8 +516,10 @@ function NovoRelatorio({
     if (!navigator.geolocation) return setGps("erro");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCoords({ lat: Number(pos.coords.latitude.toFixed(6)), lng: Number(pos.coords.longitude.toFixed(6)) });
+        const c = { lat: Number(pos.coords.latitude.toFixed(6)), lng: Number(pos.coords.longitude.toFixed(6)) };
+        setCoords(c);
         setGps("ok");
+        enderecoDoGps(c.lat, c.lng).then(setLugar);
       },
       () => setGps("erro"),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
@@ -531,7 +590,8 @@ function NovoRelatorio({
           .insert({
             nome_obra: nomeObra.trim(),
             construtora: construtora.trim(),
-            bairro: bairro.trim(),
+            bairro: bairro.trim() || lugar?.bairro || "",
+            endereco: lugar?.endereco ?? "",
             latitude: coords?.lat ?? null,
             longitude: coords?.lng ?? null,
             fase_obra: fase || null,
@@ -564,8 +624,9 @@ function NovoRelatorio({
         tipo,
         nome_obra: ref?.nome_obra ?? nomeObra.trim(),
         construtora: ref?.construtora ?? construtora.trim(),
-        bairro: ref?.bairro ?? bairro.trim(),
-        endereco: ref?.endereco ?? "",
+        // onde o vendedor realmente esteve (GPS) vem antes do endereço cadastrado
+        bairro: lugar?.bairro || ref?.bairro || bairro.trim(),
+        endereco: lugar?.endereco || ref?.endereco || "",
         latitude: coords?.lat ?? ref?.latitude ?? null,
         longitude: coords?.lng ?? ref?.longitude ?? null,
         data_visita: hojeISO(),
@@ -658,21 +719,27 @@ function NovoRelatorio({
         </div>
 
         {/* Tipo */}
-        <div className="grid grid-cols-2 gap-2">
-          {(["cliente", "aquisicao"] as TipoRelatorio[]).map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTipo(t)}
-              className={cx(
-                "flex items-center justify-center gap-2 rounded-2xl border-2 px-3 py-3 text-sm font-bold transition",
-                tipo === t ? "border-marinho-700 bg-marinho-50 text-marinho-800" : "border-slate-200 text-slate-500"
-              )}
-            >
-              {t === "cliente" ? <Handshake size={19} /> : <Building2 size={19} />}
-              {t === "cliente" ? "Cliente" : "Nova obra"}
-            </button>
-          ))}
+        <div>
+          <p className="mb-2 text-sm font-bold text-marinho-800">Tipo de visita</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(Object.keys(TIPO_RELATORIO) as TipoRelatorio[]).map((t) => {
+              const Icone = ICONE_TIPO[t];
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTipo(t)}
+                  className={cx(
+                    "flex flex-col items-center justify-center gap-1 rounded-2xl border-2 px-2 py-3 text-center text-xs font-bold leading-tight transition sm:text-sm",
+                    tipo === t ? "border-marinho-700 bg-marinho-50 text-marinho-800" : "border-slate-200 text-slate-500"
+                  )}
+                >
+                  <Icone size={20} />
+                  {TIPO_RELATORIO[t].label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {isAdmin && (
@@ -686,9 +753,9 @@ function NovoRelatorio({
 
         {/* Obra */}
         <div className="space-y-3">
-          <Field label="Obra">
+          <Field label={tipo === "aquisicao" ? "Obra" : "Obra / cliente"}>
             <Select value={obraId} onChange={(e) => escolherObra(e.target.value)}>
-              <option value="">+ Obra nova (digitar abaixo)</option>
+              <option value="">{tipo === "aquisicao" ? "+ Obra nova (digitar abaixo)" : "+ Novo (digitar abaixo)"}</option>
               {obrasOrdenadas.map((o) => (
                 <option key={o.id} value={o.id}>{o.nome_obra}{o.bairro ? ` — ${o.bairro}` : ""}</option>
               ))}
@@ -696,7 +763,7 @@ function NovoRelatorio({
           </Field>
           {!obraId && (
             <div className="grid gap-3 sm:grid-cols-3">
-              <Input placeholder="Nome da obra *" value={nomeObra} onChange={(e) => setNomeObra(e.target.value)} />
+              <Input placeholder={tipo === "aquisicao" ? "Nome da obra *" : "Nome da obra / cliente *"} value={nomeObra} onChange={(e) => setNomeObra(e.target.value)} />
               <Input placeholder="Construtora" value={construtora} onChange={(e) => setConstrutora(e.target.value)} />
               <Input placeholder="Bairro" value={bairro} onChange={(e) => setBairro(e.target.value)} />
             </div>
@@ -708,7 +775,10 @@ function NovoRelatorio({
             )}
           >
             {gps === "ok" ? <MapPin size={13} /> : <LocateFixed size={13} />}
-            {gps === "ok" && "Localização registrada"}
+            {gps === "ok" &&
+              (lugar && (lugar.endereco || lugar.bairro)
+                ? `Você está em: ${[lugar.endereco, lugar.bairro].filter(Boolean).join(" · ")}`
+                : "Localização registrada")}
             {gps === "buscando" && "Pegando localização..."}
             {gps === "erro" && "Sem localização (permita o GPS no navegador)"}
           </p>
@@ -833,6 +903,21 @@ function DetalheRelatorio({
   const tp = TIPO_RELATORIO[r.tipo];
   const rs = RESULTADO_VISITA[r.resultado];
   const temLocal = r.latitude != null || !!r.endereco;
+  const [pdf, setPdf] = useState<string | null>(null);
+
+  async function baixarPDF() {
+    setPdf("Gerando...");
+    try {
+      await exportarRelatoriosPDF([r], {
+        periodo: dataBR(r.data_visita),
+        vendedor: r.vendedor?.nome ?? "-",
+        onProgresso: setPdf,
+      });
+    } catch {
+      window.alert("Não foi possível gerar o PDF. Tente de novo.");
+    }
+    setPdf(null);
+  }
 
   async function enviarFunil() {
     setOcupado(true);
@@ -926,7 +1011,7 @@ function DetalheRelatorio({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Info label="Vendedor" valor={r.vendedor?.nome} />
-        <Info label="Data" valor={`${dataBR(r.data_visita)}${r.hora_inicio ? ` · ${r.hora_inicio.slice(0, 5)}` : ""}`} />
+        <Info label="Data e hora" valor={`${dataBR(r.data_visita)}${r.hora_inicio ? ` às ${r.hora_inicio.slice(0, 5)}` : ""}`} />
         <Info label="Construtora / cliente" valor={r.construtora} />
         <Info label="Local" valor={[r.endereco, r.bairro].filter(Boolean).join(" · ")} />
         <Info label="Contato" valor={[r.contato_nome, r.contato_telefone].filter(Boolean).join(" · ")} />
@@ -950,6 +1035,9 @@ function DetalheRelatorio({
       {msg && <p className="mt-4 rounded-xl bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">{msg}</p>}
 
       <div className="mt-5 flex flex-wrap gap-2">
+        <Button variant="secondary" className="flex-1" onClick={baixarPDF} disabled={!!pdf}>
+          <FileDown size={16} /> {pdf ?? "Baixar PDF"}
+        </Button>
         {temLocal && (
           <a href={mapsLink(r.latitude, r.longitude, r.endereco || r.bairro)} target="_blank" rel="noreferrer" className="flex-1">
             <Button variant="secondary" className="w-full">

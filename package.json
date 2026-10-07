@@ -12,6 +12,7 @@
     "@dnd-kit/core": "^6.1.0",
     "@supabase/supabase-js": "^2.45.4",
     "clsx": "^2.1.1",
+    "jspdf": "^2.5.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.454.0",
     "react": "^18.3.1",

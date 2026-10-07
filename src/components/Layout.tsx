@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { KanbanSquare, Building2, MapPinned, BarChart3, Users, ClipboardList, LogOut, KeyRound } from "lucide-react";
+import { KanbanSquare, Building2, BarChart3, Users, ClipboardList, LogOut, KeyRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Field, Input, Modal } from "./ui";
@@ -19,7 +19,6 @@ const nav: {
 }[] = [
   { to: "/", label: "Funil", curto: "Funil", icon: KanbanSquare, end: true },
   { to: "/obras/nova", label: "Nova obra", curto: "Obra", icon: Building2, perm: "cadastrar_obras" },
-  { to: "/visitas", label: "Visitas do dia", curto: "Visitas", icon: MapPinned },
   { to: "/relatorios", label: "Relatórios de visita", curto: "Relatórios", icon: ClipboardList },
   { to: "/equipe", label: "Equipe e acessos", curto: "Equipe", icon: Users, adminOnly: true },
   { to: "/dashboard", label: "Painel", curto: "Painel", icon: BarChart3, perm: "ver_painel" },

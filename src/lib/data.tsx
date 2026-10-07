@@ -1,14 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
-import type { Etapa, Obra, Oportunidade, Vendedor, Visita, Classificacao } from "./types";
+import type { Etapa, Obra, Oportunidade, Vendedor, Classificacao } from "./types";
 
 export interface Card extends Oportunidade {
   obra: Obra;
   vendedor: Vendedor | null;
 }
 
-type VisitaComObra = Visita & { obra: Obra };
 
 interface DataCtx {
   loading: boolean;
@@ -16,7 +15,6 @@ interface DataCtx {
   cards: Card[];
   obras: Obra[];
   vendedores: Vendedor[];
-  visitas: VisitaComObra[];
   recarregar: () => Promise<void>;
   moverEtapa: (id: string, etapaId: string, extra?: Partial<Oportunidade>) => Promise<void>;
   setClassificacao: (id: string, c: Classificacao) => Promise<void>;
@@ -33,7 +31,6 @@ interface DataCtx {
     valorEstimado: number,
     classificacao: Classificacao
   ) => Promise<{ error: string | null }>;
-  salvarVisita: (v: Partial<Visita> & { id?: string }) => Promise<void>;
 }
 
 const Ctx = createContext<DataCtx>(null!);
@@ -49,7 +46,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [cards, setCards] = useState<Card[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
-  const [visitas, setVisitas] = useState<VisitaComObra[]>([]);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const carregou = useRef(false);
@@ -72,7 +68,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const recarregar = useCallback(async () => {
     if (!session) return;
     if (!carregou.current) setLoading(true);
-    const [etRes, opRes, obRes, veRes, viRes] = await Promise.all([
+    const [etRes, opRes, obRes, veRes] = await Promise.all([
       supabase.from("etapas").select("*").order("ordem"),
       supabase
         .from("oportunidades")
@@ -80,13 +76,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .order("criado_em", { ascending: false }),
       supabase.from("obras").select("*").order("criado_em", { ascending: false }),
       supabase.from("profiles").select("*").eq("role", "vendedor").eq("status", "ativo").order("nome"),
-      supabase.from("visitas").select("*, obra:obras(*)").order("data_visita", { ascending: true }),
     ]);
     if (!etRes.error) setEtapas((etRes.data as Etapa[]) ?? []);
     if (!opRes.error) setCards((opRes.data as Card[]) ?? []);
     if (!obRes.error) setObras((obRes.data as Obra[]) ?? []);
     if (!veRes.error) setVendedores((veRes.data as Vendedor[]) ?? []);
-    if (!viRes.error) setVisitas((viRes.data as VisitaComObra[]) ?? []);
     carregou.current = true;
     setLoading(false);
   }, [session]);
@@ -132,11 +126,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "obras" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "etapas" }, agendarSync)
-      .on("postgres_changes", { event: "*", schema: "public", table: "visitas" }, (p) => {
-        const id = (p.new as { id?: string })?.id;
-        if (id && ehEco(id)) return;
-        agendarSync();
-      })
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
@@ -267,24 +256,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
-  const salvarVisita: DataCtx["salvarVisita"] = async (v) => {
-    if (v.id) {
-      const { id, ...rest } = v;
-      const anterior = visitas.find((x) => x.id === id);
-      marcarEditado(id);
-      setVisitas((vs) => vs.map((x) => (x.id === id ? { ...x, ...rest } : x)));
-      const { error } = await supabase.from("visitas").update(rest).eq("id", id);
-      if (error) {
-        if (anterior) setVisitas((vs) => vs.map((x) => (x.id === id ? anterior : x)));
-        avisar("Não foi possível salvar a visita.");
-      }
-    } else {
-      const { error } = await supabase.from("visitas").insert(v);
-      if (error) avisar("Não foi possível agendar a visita.");
-      else await recarregar();
-    }
-  };
-
   return (
     <Ctx.Provider
       value={{
@@ -293,7 +264,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         cards,
         obras,
         vendedores,
-        visitas,
         recarregar,
         moverEtapa,
         setClassificacao,
@@ -305,8 +275,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         moverColuna,
         excluirEtapa,
         criarObra,
-        salvarVisita,
-      }}
+              }}
     >
       {children}
       {aviso && (

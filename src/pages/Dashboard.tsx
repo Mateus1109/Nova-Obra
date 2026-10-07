@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
   PieChart, Pie, Legend,
@@ -6,14 +6,26 @@ import {
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import { Building2, CheckCheck, TrendingUp, AlertTriangle, Flame, Navigation } from "lucide-react";
 import { useData } from "@/lib/data";
+import { supabase } from "@/lib/supabase";
 import { Card, Empty, Spinner } from "@/components/ui";
 import { CLASSIFICACOES, type Classificacao } from "@/lib/types";
-import { brl, diasDesde, mapsLink } from "@/lib/utils";
+import { diasDesde, isoLocal, mapsLink } from "@/lib/utils";
 
 const PARADA_DIAS = 7;
 
 export default function Dashboard() {
-  const { cards, etapas, obras, vendedores, visitas, loading } = useData();
+  const { cards, etapas, obras, vendedores, loading } = useData();
+  // Visitas = relatórios de visita dos últimos 30 dias
+  const [visitas, setVisitas] = useState<{ vendedor_id: string; data_visita: string }[]>([]);
+  useEffect(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 29);
+    supabase
+      .from("relatorios_visita")
+      .select("vendedor_id, data_visita")
+      .gte("data_visita", isoLocal(d))
+      .then(({ data }) => setVisitas(data ?? []));
+  }, []);
   const tipoDe = useMemo(() => new Map(etapas.map((e) => [e.id, e.tipo])), [etapas]);
 
   const kpis = useMemo(() => {
@@ -22,7 +34,7 @@ export default function Dashboard() {
       const d = new Date(o.criado_em);
       return d.getMonth() === agora.getMonth() && d.getFullYear() === agora.getFullYear();
     }).length;
-    const realizadas = visitas.filter((v) => v.status_visita === "realizada").length;
+    const realizadas = visitas.length;
     const ganhos = cards.filter((c) => tipoDe.get(c.etapa_id) === "ganho").length;
     const fechados = cards.filter((c) => tipoDe.get(c.etapa_id) !== "aberta").length;
     const conversao = fechados ? Math.round((ganhos / fechados) * 100) : 0;
@@ -43,7 +55,7 @@ export default function Dashboard() {
     () =>
       vendedores.map((v) => ({
         nome: v.nome.split(" ")[0],
-        visitas: visitas.filter((x) => x.vendedor_id === v.id && x.status_visita === "realizada").length,
+        visitas: visitas.filter((x) => x.vendedor_id === v.id).length,
         obras: cards.filter((c) => c.vendedor_id === v.id).length,
       })),
     [vendedores, visitas, cards]
@@ -80,7 +92,7 @@ export default function Dashboard() {
       {/* KPIs */}
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi icon={<Building2 />} label="Obras no mês" valor={kpis.noMes} cor="#2E78A8" />
-        <Kpi icon={<CheckCheck />} label="Visitas realizadas" valor={kpis.realizadas} cor="#16a34a" />
+        <Kpi icon={<CheckCheck />} label="Visitas (30 dias)" valor={kpis.realizadas} cor="#16a34a" />
         <Kpi icon={<TrendingUp />} label="Conversão" valor={`${kpis.conversao}%`} cor="#7c3aed" />
         <Kpi icon={<Flame />} label="Obras ganhas" valor={kpis.ganhos} cor="#f59e0b" />
       </div>
@@ -110,7 +122,7 @@ export default function Dashboard() {
               <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
               <Tooltip cursor={{ fill: "#f1f5f9" }} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="visitas" name="Visitas realizadas" fill="#2E78A8" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="visitas" name="Visitas (30 dias)" fill="#2E78A8" radius={[6, 6, 0, 0]} />
               <Bar dataKey="obras" name="Obras no funil" fill="#173A5E" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

@@ -5,12 +5,10 @@ import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Kanban from "./pages/Kanban";
 import CadastroObra from "./pages/CadastroObra";
-import Visitas from "./pages/Visitas";
 import Vendedores from "./pages/Vendedores";
 import Aguardando from "./pages/Aguardando";
 import Relatorios from "./pages/Relatorios";
 import Dashboard from "./pages/Dashboard";
-import RotaPrint from "./pages/RotaPrint";
 import { Spinner } from "./components/ui";
 
 function Protegido() {
@@ -27,8 +25,6 @@ function Protegido() {
   return (
     <DataProvider>
       <Routes>
-        {/* rota de impressão sem layout */}
-        <Route path="/visitas/rota/:vendedorId/:data" element={<RotaPrint />} />
         <Route
           path="*"
           element={
@@ -39,7 +35,6 @@ function Protegido() {
                   path="/obras/nova"
                   element={pode("cadastrar_obras") ? <CadastroObra /> : <Navigate to="/" replace />}
                 />
-                <Route path="/visitas" element={<Visitas />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route
                   path="/equipe"
