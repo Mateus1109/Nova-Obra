@@ -49,7 +49,9 @@ const MAX_FOTOS = 10;
 type Periodo = "7" | "30" | "mes" | "todos";
 
 export default function Relatorios() {
-  const { profile, isAdmin } = useAuth();
+  const { profile, isAdmin: ehAdmin, pode } = useAuth();
+  // Quem pode ver os relatórios da equipe também enxerga o filtro por vendedor e o ranking
+  const isAdmin = ehAdmin || pode("ver_relatorios_equipe");
   const { vendedores, obras } = useData();
   const loc = useLocation();
   const nav = useNavigate();
@@ -352,7 +354,7 @@ export default function Relatorios() {
       {detalhe && (
         <DetalheRelatorio
           r={detalhe}
-          podeExcluir={isAdmin || detalhe.vendedor_id === profile?.id}
+          podeExcluir={ehAdmin || detalhe.vendedor_id === profile?.id}
           onClose={() => setDetalheId(null)}
           onAlterado={carregar}
         />
@@ -420,7 +422,8 @@ function NovoRelatorio({
   onClose: () => void;
   onSalvo: () => void;
 }) {
-  const { session, profile, isAdmin } = useAuth();
+  const { session, profile, isAdmin, pode } = useAuth();
+  const podeCadastrar = pode("cadastrar_obras");
   const { obras, vendedores } = useData();
 
   const [tipo, setTipo] = useState<TipoRelatorio>(obraInicial ? "cliente" : "aquisicao");
@@ -522,7 +525,7 @@ function NovoRelatorio({
       const vol = Number(volume) || 0;
 
       // Obra nova de aquisição: já entra no funil (1ª coluna) com o vendedor como responsável
-      if (!obraId && tipo === "aquisicao" && noFunil) {
+      if (!obraId && tipo === "aquisicao" && noFunil && podeCadastrar) {
         const { data: obra, error } = await supabase
           .from("obras")
           .insert({
@@ -747,7 +750,7 @@ function NovoRelatorio({
           </div>
         </div>
 
-        {!obraId && tipo === "aquisicao" && (
+        {!obraId && tipo === "aquisicao" && podeCadastrar && (
           <label className="flex cursor-pointer items-center gap-3 rounded-2xl bg-aco-50 p-3">
             <input
               type="checkbox"
@@ -822,7 +825,7 @@ function DetalheRelatorio({
   onClose: () => void;
   onAlterado: () => void;
 }) {
-  const { profile } = useAuth();
+  const { profile, pode } = useAuth();
   const urls = useUrls(r.fotos ?? []);
   const [ampliada, setAmpliada] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -954,7 +957,7 @@ function DetalheRelatorio({
             </Button>
           </a>
         )}
-        {r.tipo === "aquisicao" && !r.oportunidade_id && (
+        {r.tipo === "aquisicao" && !r.oportunidade_id && pode("cadastrar_obras") && (
           <Button className="flex-1" onClick={enviarFunil} disabled={ocupado}>
             <Send size={16} /> Enviar obra para o funil
           </Button>

@@ -28,6 +28,31 @@ export type StatusVisita = "agendada" | "realizada" | "remarcada" | "cancelada";
 export type TipoInteracao = "visita" | "ligacao" | "whatsapp" | "email";
 
 // ---------- Entidades ----------
+export type StatusUsuario = "pendente" | "ativo" | "bloqueado";
+
+export type Permissao =
+  | "cadastrar_obras"
+  | "mover_funil"
+  | "ver_todas_obras"
+  | "excluir_obras"
+  | "ver_relatorios_equipe"
+  | "ver_painel";
+
+export const PERMISSOES: { key: Permissao; label: string; desc: string }[] = [
+  { key: "cadastrar_obras", label: "Cadastrar obras", desc: "Cria obras novas e coloca no funil" },
+  { key: "mover_funil", label: "Mover cards no funil", desc: "Muda etapa, temperatura e dados da obra" },
+  { key: "ver_todas_obras", label: "Ver todas as obras", desc: "Enxerga o funil inteiro, não só as obras dele" },
+  { key: "excluir_obras", label: "Excluir obras", desc: "Apaga obras e oportunidades" },
+  { key: "ver_relatorios_equipe", label: "Ver relatórios da equipe", desc: "Vê visitas e fotos de todos os vendedores" },
+  { key: "ver_painel", label: "Ver painel comercial", desc: "Acessa o painel com números e gráficos" },
+];
+
+/** Permissões ligadas por padrão ao aprovar um vendedor */
+export const PERMISSOES_PADRAO: Partial<Record<Permissao, boolean>> = {
+  cadastrar_obras: true,
+  mover_funil: true,
+};
+
 export interface Vendedor {
   id: string;
   nome: string;
@@ -36,6 +61,9 @@ export interface Vendedor {
   role: Role;
   zona_atuacao: string;
   ativo: boolean;
+  status: StatusUsuario;
+  permissoes: Partial<Record<Permissao, boolean>>;
+  criado_em?: string;
 }
 
 export interface Obra {

@@ -7,13 +7,14 @@ import Kanban from "./pages/Kanban";
 import CadastroObra from "./pages/CadastroObra";
 import Visitas from "./pages/Visitas";
 import Vendedores from "./pages/Vendedores";
+import Aguardando from "./pages/Aguardando";
 import Relatorios from "./pages/Relatorios";
 import Dashboard from "./pages/Dashboard";
 import RotaPrint from "./pages/RotaPrint";
 import { Spinner } from "./components/ui";
 
 function Protegido() {
-  const { session, loading, isAdmin } = useAuth();
+  const { session, profile, loading, isAdmin, pode } = useAuth();
   if (loading)
     return (
       <div className="grid min-h-screen place-items-center bg-slate-50">
@@ -21,6 +22,7 @@ function Protegido() {
       </div>
     );
   if (!session) return <Login />;
+  if (profile?.status !== "ativo") return <Aguardando />;
 
   return (
     <DataProvider>
@@ -33,16 +35,19 @@ function Protegido() {
             <Layout>
               <Routes>
                 <Route path="/" element={<Kanban />} />
-                <Route path="/obras/nova" element={<CadastroObra />} />
+                <Route
+                  path="/obras/nova"
+                  element={pode("cadastrar_obras") ? <CadastroObra /> : <Navigate to="/" replace />}
+                />
                 <Route path="/visitas" element={<Visitas />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route
-                  path="/vendedores"
+                  path="/equipe"
                   element={isAdmin ? <Vendedores /> : <Navigate to="/" replace />}
                 />
                 <Route
                   path="/dashboard"
-                  element={isAdmin ? <Dashboard /> : <Navigate to="/" replace />}
+                  element={pode("ver_painel") ? <Dashboard /> : <Navigate to="/" replace />}
                 />
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

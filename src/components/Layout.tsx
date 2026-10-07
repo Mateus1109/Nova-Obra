@@ -1,20 +1,62 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { KanbanSquare, Building2, MapPinned, BarChart3, Users, ClipboardList, LogOut, KeyRound } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button, Field, Input, Modal } from "./ui";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/utils";
 import type { ReactNode } from "react";
+import type { Permissao } from "@/lib/types";
 
-const nav = [
+const nav: {
+  to: string;
+  label: string;
+  curto: string;
+  icon: typeof KanbanSquare;
+  end?: boolean;
+  adminOnly?: boolean;
+  perm?: Permissao;
+}[] = [
   { to: "/", label: "Funil", curto: "Funil", icon: KanbanSquare, end: true },
-  { to: "/obras/nova", label: "Nova obra", curto: "Obra", icon: Building2 },
+  { to: "/obras/nova", label: "Nova obra", curto: "Obra", icon: Building2, perm: "cadastrar_obras" },
   { to: "/visitas", label: "Visitas do dia", curto: "Visitas", icon: MapPinned },
   { to: "/relatorios", label: "Relatórios de visita", curto: "Relatórios", icon: ClipboardList },
-  { to: "/vendedores", label: "Equipe", curto: "Equipe", icon: Users, adminOnly: true },
-  { to: "/dashboard", label: "Painel", curto: "Painel", icon: BarChart3, adminOnly: true },
+  { to: "/equipe", label: "Equipe e acessos", curto: "Equipe", icon: Users, adminOnly: true },
+  { to: "/dashboard", label: "Painel", curto: "Painel", icon: BarChart3, perm: "ver_painel" },
 ];
+
+/** Quantos cadastros aguardam liberação (só para o administrador) */
+function usePendentes(ativo: boolean) {
+  const [qtd, setQtd] = useState(0);
+  useEffect(() => {
+    if (!ativo) return;
+    const contar = async () => {
+      const { count } = await supabase
+        .from("profiles")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pendente");
+      setQtd(count ?? 0);
+    };
+    contar();
+    const ch = supabase
+      .channel("pendentes-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, contar)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [ativo]);
+  return qtd;
+}
+
+function Contador({ n }: { n: number }) {
+  if (!n) return null;
+  return (
+    <span className="ml-auto grid h-5 min-w-5 place-items-center rounded-full bg-amber-400 px-1.5 text-[11px] font-black text-marinho-900">
+      {n}
+    </span>
+  );
+}
 
 function Logo({ compact }: { compact?: boolean }) {
   return (
@@ -31,9 +73,10 @@ function Logo({ compact }: { compact?: boolean }) {
 }
 
 export default function Layout({ children }: { children: ReactNode }) {
-  const { profile, isAdmin, sair } = useAuth();
+  const { profile, isAdmin, pode, sair } = useAuth();
   const loc = useLocation();
-  const itens = nav.filter((n) => !n.adminOnly || isAdmin);
+  const itens = nav.filter((n) => (n.adminOnly ? isAdmin : !n.perm || pode(n.perm)));
+  const pendentes = usePendentes(isAdmin);
   const [senhaAberta, setSenhaAberta] = useState(false);
 
   return (
@@ -58,13 +101,14 @@ export default function Layout({ children }: { children: ReactNode }) {
             >
               <n.icon size={19} />
               {n.label}
+              {n.to === "/equipe" && <Contador n={pendentes} />}
             </NavLink>
           ))}
         </nav>
         <div className="rounded-xl bg-white/10 p-3">
           <p className="truncate text-sm font-bold text-white">{profile?.nome}</p>
           <p className="truncate text-[11px] text-aco-100">
-            {isAdmin ? "Diretor Comercial" : "Vendedor"}
+            {isAdmin ? "Administrador" : "Vendedor"}
           </p>
           <div className="mt-2 flex items-center gap-3">
             <button
@@ -111,12 +155,17 @@ export default function Layout({ children }: { children: ReactNode }) {
               to={n.to}
               end={n.end}
               className={cx(
-                "flex min-w-0 flex-1 flex-col items-center gap-0.5 whitespace-nowrap py-2.5 text-[10px] font-semibold",
+                "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 whitespace-nowrap py-2.5 text-[10px] font-semibold",
                 active ? "text-aco-600" : "text-slate-400"
               )}
             >
               <n.icon size={21} />
               {n.curto}
+              {n.to === "/equipe" && pendentes > 0 && (
+                <span className="absolute right-[calc(50%-18px)] top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-black text-marinho-900">
+                  {pendentes}
+                </span>
+              )}
             </NavLink>
           );
         })}

@@ -48,7 +48,8 @@ export default function FichaObra({
   onClose: () => void;
   onMudarEtapa: (etapaId: string) => void;
 }) {
-  const { isAdmin } = useAuth();
+  const { isAdmin, pode } = useAuth();
+  const podeMover = pode("mover_funil");
   const { etapas, vendedores, visitas, atualizarObra, atualizarOportunidade, setResponsavel, setClassificacao } =
     useData();
   const o = card.obra;
@@ -78,7 +79,7 @@ export default function FichaObra({
       {/* Etapa / temperatura / responsável */}
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Etapa no funil">
-          <Select value={card.etapa_id} onChange={(e) => onMudarEtapa(e.target.value)}>
+          <Select value={card.etapa_id} onChange={(e) => onMudarEtapa(e.target.value)} disabled={!podeMover}>
             {etapas.map((e) => (<option key={e.id} value={e.id}>{e.nome}</option>))}
           </Select>
         </Field>
@@ -100,7 +101,7 @@ export default function FichaObra({
             {(["frio", "morno", "quente"] as Classificacao[]).map((c) => (
               <button
                 key={c}
-                onClick={() => setClassificacao(card.id, c)}
+                onClick={() => podeMover && setClassificacao(card.id, c)}
                 className={cx(
                   "flex-1 rounded-xl border-2 py-2 text-xs font-bold transition",
                   card.classificacao === c ? "border-marinho-700" : "border-transparent"
@@ -148,7 +149,7 @@ export default function FichaObra({
       {/* Dados da obra */}
       <div className="mt-5 flex items-center justify-between">
         <h4 className="font-bold text-marinho-800">Dados da obra</h4>
-        {!editando && (
+        {!editando && podeMover && (
           <Button size="sm" variant="ghost" onClick={() => setEditando(true)}>
             <Pencil size={14} /> Editar
           </Button>

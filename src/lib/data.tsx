@@ -79,7 +79,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .select("*, obra:obras(*), vendedor:profiles(*)")
         .order("criado_em", { ascending: false }),
       supabase.from("obras").select("*").order("criado_em", { ascending: false }),
-      supabase.from("profiles").select("*").eq("role", "vendedor").order("nome"),
+      supabase.from("profiles").select("*").eq("role", "vendedor").eq("status", "ativo").order("nome"),
       supabase.from("visitas").select("*, obra:obras(*)").order("data_visita", { ascending: true }),
     ]);
     if (!etRes.error) setEtapas((etRes.data as Etapa[]) ?? []);

@@ -35,7 +35,8 @@ type Vista = "quadro" | "lista";
 
 export default function Kanban() {
   const { cards, etapas, vendedores, loading, moverEtapa, setClassificacao } = useData();
-  const { isAdmin } = useAuth();
+  const { isAdmin, pode } = useAuth();
+  const podeMover = pode("mover_funil");
 
   const [vista, setVista] = useState<Vista>("quadro");
   const [busca, setBusca] = useState("");
@@ -79,7 +80,7 @@ export default function Kanban() {
   // Ganho/perdido pedem confirmação (valor fechado / motivo da perda)
   function irParaEtapa(card: TCard, etapaId: string) {
     const destino = etapaPorId.get(etapaId);
-    if (!destino || card.etapa_id === etapaId) return;
+    if (!podeMover || !destino || card.etapa_id === etapaId) return;
     if (destino.tipo !== "aberta") setPendente({ card, etapa: destino });
     else moverEtapa(card.id, etapaId);
   }
@@ -131,7 +132,7 @@ export default function Kanban() {
             className="pl-9"
           />
         </div>
-        {isAdmin && (
+        {(isAdmin || pode("ver_todas_obras")) && (
           <Select value={fVendedor} onChange={(e) => setFVendedor(e.target.value)}>
             <option value="">Todos vendedores</option>
             <option value="_sem">Sem responsável</option>
@@ -156,7 +157,7 @@ export default function Kanban() {
       </div>
 
       {vista === "quadro" ? (
-        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+        <DndContext sensors={podeMover ? sensors : []} onDragEnd={onDragEnd}>
           <div className="flex gap-4 overflow-x-auto pb-4">
             {etapas.map((et, i) => (
               <Coluna
@@ -179,7 +180,7 @@ export default function Kanban() {
           etapas={etapas}
           onOpen={setDetalheId}
           onEtapa={irParaEtapa}
-          onClass={(id, cl) => setClassificacao(id, cl)}
+          onClass={(id, cl) => podeMover && setClassificacao(id, cl)}
         />
       )}
 

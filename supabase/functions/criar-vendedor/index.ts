@@ -1,5 +1,7 @@
 // Edge Function: criar-vendedor
-// Cria um usuário de login (vendedor) + profile. Apenas ADMIN autenticado pode chamar.
+// Apenas ADMIN autenticado pode chamar.
+//  - padrão: cria um usuário de login (vendedor) já aprovado + profile
+//  - { acao: "confirmar_email", id }: confirma o e-mail de quem se cadastrou sozinho (usado ao aprovar)
 // verify_jwt = false porque a autenticação/autorização é feita manualmente aqui.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -34,10 +36,10 @@ Deno.serve(async (req) => {
   // 2) Confirma que é admin
   const { data: perfil } = await admin
     .from("profiles")
-    .select("role")
+    .select("role, status")
     .eq("id", userData.user.id)
     .single();
-  if (!perfil || perfil.role !== "admin")
+  if (!perfil || perfil.role !== "admin" || perfil.status !== "ativo")
     return json({ error: "Apenas o diretor (admin) pode cadastrar vendedores." }, 403);
 
   // 3) Lê os dados do novo vendedor
@@ -47,6 +49,13 @@ Deno.serve(async (req) => {
   } catch {
     return json({ error: "Corpo inválido." }, 400);
   }
+  if (body.acao === "confirmar_email") {
+    if (!body.id) return json({ error: "Informe o usuário." }, 400);
+    const { error } = await admin.auth.admin.updateUserById(body.id, { email_confirm: true });
+    if (error) return json({ error: error.message }, 400);
+    return json({ ok: true });
+  }
+
   const nome = (body.nome ?? "").trim();
   const email = (body.email ?? "").trim().toLowerCase();
   const senha = body.senha ?? "";
@@ -73,7 +82,14 @@ Deno.serve(async (req) => {
   // 5) Atualiza o profile (o trigger handle_new_user já criou a linha)
   const { error: upErr } = await admin
     .from("profiles")
-    .update({ nome, telefone, zona_atuacao, role: "vendedor", ativo: true })
+    .update({
+      nome,
+      telefone,
+      zona_atuacao,
+      role: "vendedor",
+      status: "ativo",
+      permissoes: { cadastrar_obras: true, mover_funil: true },
+    })
     .eq("id", novo.user.id);
   if (upErr) return json({ error: upErr.message }, 400);
 
