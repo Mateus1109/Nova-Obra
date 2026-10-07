@@ -163,9 +163,16 @@ export default function Relatorios() {
     };
   }, [filtrados]);
 
+  const equipe = useMemo(() => {
+    const m = new Map<string, string>();
+    vendedores.forEach((v) => m.set(v.id, v.nome));
+    lista.forEach((r) => !m.has(r.vendedor_id) && m.set(r.vendedor_id, r.vendedor?.nome ?? "Sem nome"));
+    return Array.from(m, ([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [vendedores, lista]);
+
   const ranking = useMemo(() => {
     if (!isAdmin) return [];
-    return vendedores
+    return equipe
       .map((v) => {
         const meus = filtrados.filter((r) => r.vendedor_id === v.id);
         return {
@@ -180,7 +187,7 @@ export default function Relatorios() {
         };
       })
       .sort((a, b) => b.total - a.total);
-  }, [isAdmin, vendedores, filtrados]);
+  }, [isAdmin, equipe, filtrados]);
 
   const visiveis = filtrados.slice(0, limite);
   const thumbs = useUrls(visiveis.map((r) => r.fotos?.[0]).filter(Boolean) as string[]);
@@ -193,7 +200,7 @@ export default function Relatorios() {
       await exportarRelatoriosPDF(filtrados, {
         periodo: ROTULO_PERIODO[periodo],
         vendedor: fVendedor
-          ? vendedores.find((v) => v.id === fVendedor)?.nome ?? "-"
+          ? equipe.find((v) => v.id === fVendedor)?.nome ?? "-"
           : isAdmin
             ? "Todos os vendedores"
             : profile?.nome ?? "-",
@@ -216,25 +223,25 @@ export default function Relatorios() {
             {isAdmin ? "Gestão das visitas da equipe comercial" : "Registre cada visita com fotos e resultado"}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
           {filtrados.length > 0 && (
-            <>
-              <Button variant="secondary" onClick={baixarPDF} disabled={!!gerandoPdf}>
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1 sm:flex-none" onClick={baixarPDF} disabled={!!gerandoPdf}>
                 <FileDown size={16} /> {gerandoPdf ?? `Baixar PDF (${filtrados.length})`}
               </Button>
               <Button variant="ghost" onClick={() => exportarCSV(filtrados)} title="Planilha para Excel">
                 <Download size={16} /> Planilha
               </Button>
-            </>
+            </div>
           )}
-          <Button size="lg" onClick={() => setNovo({})}>
+          <Button size="lg" className="w-full sm:w-auto" onClick={() => setNovo({})}>
             <Plus size={18} /> Registrar visita
           </Button>
         </div>
       </header>
 
       {/* KPIs */}
-      <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="-mx-4 mb-5 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-5 [&>*]:min-w-[9.5rem] [&>*]:flex-shrink-0 sm:[&>*]:min-w-0">
         <Kpi label="Visitas" valor={kpi.total} cor="#173A5E" icon={<ClipboardList size={18} />} />
         <Kpi label="Visita a cliente" valor={kpi.clientes} cor="#16a34a" icon={<Handshake size={18} />} />
         <Kpi label="Nova obra" valor={kpi.aquisicao} cor="#2E78A8" icon={<Building2 size={18} />} />
@@ -262,7 +269,7 @@ export default function Relatorios() {
         {isAdmin && (
           <Select value={fVendedor} onChange={(e) => setFVendedor(e.target.value)}>
             <option value="">Todos vendedores</option>
-            {vendedores.map((v) => (<option key={v.id} value={v.id}>{v.nome}</option>))}
+            {equipe.map((v) => (<option key={v.id} value={v.id}>{v.nome}</option>))}
           </Select>
         )}
         <Select value={fTipo} onChange={(e) => setFTipo(e.target.value)}>
@@ -1098,24 +1105,24 @@ function DetalheRelatorio({
 
       {msg && <p className="mt-4 rounded-xl bg-green-50 px-3 py-2 text-sm font-semibold text-green-700">{msg}</p>}
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        <Button variant="secondary" className="flex-1" onClick={baixarPDF} disabled={!!pdf}>
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Button variant="secondary" className="whitespace-nowrap sm:flex-1" onClick={baixarPDF} disabled={!!pdf}>
           <FileDown size={16} /> {pdf ?? "Baixar PDF"}
         </Button>
         {temLocal && (
-          <a href={mapsLink(r.latitude, r.longitude, r.endereco || r.bairro)} target="_blank" rel="noreferrer" className="flex-1">
-            <Button variant="secondary" className="w-full">
-              <Navigation size={16} /> Abrir no Maps
+          <a href={mapsLink(r.latitude, r.longitude, r.endereco || r.bairro)} target="_blank" rel="noreferrer" className="sm:flex-1">
+            <Button variant="secondary" className="w-full whitespace-nowrap">
+              <Navigation size={16} /> Maps
             </Button>
           </a>
         )}
         {r.tipo === "aquisicao" && !r.oportunidade_id && pode("cadastrar_obras") && (
-          <Button className="flex-1" onClick={enviarFunil} disabled={ocupado}>
+          <Button className="col-span-2 sm:flex-1" onClick={enviarFunil} disabled={ocupado}>
             <Send size={16} /> Enviar obra para o funil
           </Button>
         )}
         {podeExcluir && (
-          <Button variant="ghost" onClick={excluir} disabled={ocupado} className="text-red-600 hover:bg-red-50">
+          <Button variant="ghost" onClick={excluir} disabled={ocupado} className="col-span-2 text-red-600 hover:bg-red-50">
             <Trash2 size={16} /> Excluir
           </Button>
         )}

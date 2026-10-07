@@ -106,11 +106,16 @@ export default function Leads() {
                     </div>
                   </div>
                 </div>
-                <p className="truncate text-sm text-marinho-800 md:col-span-2">{l.telefone || "—"}</p>
-                <p className="truncate text-sm text-slate-600 md:col-span-2">{(l.tipo === "empresa" ? l.segmento : l.cargo) || "—"}</p>
-                <p className="text-sm font-medium text-marinho-800 md:col-span-1 md:text-center">{negociosPorLead.get(l.id) ?? 0}</p>
-                <p className="truncate text-sm text-slate-600 md:col-span-2">{nomeDe(l.responsavel_id) ?? "—"}</p>
-                <p className="text-right text-xs text-slate-400 md:col-span-1">{dataBR(l.criado_em)}</p>
+                <p className="col-span-2 -mt-1 truncate pl-[42px] text-xs text-slate-500 md:hidden">
+                  {[l.telefone, l.tipo === "empresa" ? l.segmento : l.cargo, `${negociosPorLead.get(l.id) ?? 0} negócio(s)`]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+                <p className="hidden truncate text-sm text-marinho-800 md:col-span-2 md:block">{l.telefone || "—"}</p>
+                <p className="hidden truncate text-sm text-slate-600 md:col-span-2 md:block">{(l.tipo === "empresa" ? l.segmento : l.cargo) || "—"}</p>
+                <p className="hidden text-sm font-medium text-marinho-800 md:col-span-1 md:block md:text-center">{negociosPorLead.get(l.id) ?? 0}</p>
+                <p className="hidden truncate text-sm text-slate-600 md:col-span-2 md:block">{nomeDe(l.responsavel_id) ?? "—"}</p>
+                <p className="hidden text-right text-xs text-slate-400 md:col-span-1 md:block">{dataBR(l.criado_em)}</p>
               </button>
             ))}
           </div>

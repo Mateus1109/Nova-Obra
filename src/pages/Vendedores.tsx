@@ -105,12 +105,12 @@ export default function Vendedores() {
                 setAbaEscolhida(true);
               }}
               className={cx(
-                "flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-bold transition",
+                "flex items-center justify-center gap-1 rounded-xl px-1 py-2 text-sm font-bold transition sm:gap-1.5",
                 aba === a.key ? "bg-white text-marinho-800 shadow-sm" : "text-slate-500"
               )}
             >
               <a.icon size={15} />
-              <span className="hidden sm:inline">{a.label}</span>
+              <span className="text-xs sm:text-sm">{a.label}</span>
               <span
                 className={cx(
                   "rounded-full px-1.5 text-[0.6875rem]",

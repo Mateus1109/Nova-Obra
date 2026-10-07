@@ -91,14 +91,34 @@ export async function exportarRelatoriosPDF(rows: RelatorioVisita[], op: Opcoes)
   await Promise.all(Array.from({ length: Math.min(4, paths.length) }, trabalhador));
   op.onProgresso?.("Montando o PDF...");
 
+  // Vários vendedores: agrupa as visitas por vendedor (mais recentes primeiro dentro de cada um)
+  const nomeVend = (r: RelatorioVisita) => r.vendedor?.nome ?? "Sem vendedor";
+  const vendedores = Array.from(new Set(rows.map(nomeVend))).sort((a, b) => a.localeCompare(b));
+  const agrupar = vendedores.length > 1;
+  const ordenadas = agrupar
+    ? [...rows].sort(
+        (a, b) =>
+          nomeVend(a).localeCompare(nomeVend(b)) ||
+          b.data_visita.localeCompare(a.data_visita) ||
+          (b.hora_inicio ?? "").localeCompare(a.hora_inicio ?? "")
+      )
+    : rows;
+
   let y = cabecalho(doc, op, rows.length);
   y = resumo(doc, rows, y);
+  if (agrupar) y = tabelaVendedores(doc, rows, vendedores, nomeVend, y);
 
-  for (const r of rows) {
+  let atual = "";
+  for (const r of ordenadas) {
     const altura = alturaBloco(doc, r);
-    if (y + altura > A4_H - M - 8) {
+    const novoGrupo = agrupar && nomeVend(r) !== atual;
+    if (y + altura + (novoGrupo ? 12 : 0) > A4_H - M - 8) {
       doc.addPage();
       y = M;
+    }
+    if (novoGrupo) {
+      atual = nomeVend(r);
+      y = tituloGrupo(doc, atual, rows.filter((x) => nomeVend(x) === atual).length, y);
     }
     y = bloco(doc, r, y, imgs) + 5;
   }
@@ -108,7 +128,82 @@ export async function exportarRelatoriosPDF(rows: RelatorioVisita[], op: Opcoes)
     rows.length === 1
       ? `visita-${limpa(rows[0].nome_obra).toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}-${rows[0].data_visita}.pdf`
       : `relatorio-visitas-${hojeISO()}.pdf`;
+  await entregar(doc, nome);
+}
+
+/** No celular abre o menu de compartilhar (WhatsApp, Arquivos, e-mail); no computador baixa o arquivo. */
+async function entregar(doc: JsPDF, nome: string) {
+  const celular = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  if (celular && typeof navigator.share === "function") {
+    try {
+      const arquivo = new File([doc.output("blob")], nome, { type: "application/pdf" });
+      if (navigator.canShare?.({ files: [arquivo] })) {
+        await navigator.share({ files: [arquivo], title: nome });
+        return;
+      }
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") return; // a pessoa fechou o menu
+    }
+  }
   doc.save(nome);
+}
+
+function tituloGrupo(doc: JsPDF, nome: string, qtd: number, y: number) {
+  doc.setFillColor(...MARINHO);
+  doc.roundedRect(M, y, LARG, 9, 2, 2, "F");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text(limpa(nome), M + 4, y + 6);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text(`${qtd} visita${qtd === 1 ? "" : "s"}`, A4_W - M - 4, y + 6, { align: "right" });
+  return y + 13;
+}
+
+function tabelaVendedores(
+  doc: JsPDF,
+  rows: RelatorioVisita[],
+  vendedores: string[],
+  nomeVend: (r: RelatorioVisita) => string,
+  y: number
+) {
+  const cols = [
+    { t: "Vendedor", x: M + 3 },
+    { t: "Visitas", x: M + 92 },
+    { t: "Clientes", x: M + 112 },
+    { t: "Novas obras", x: M + 134 },
+    { t: "Pedidos", x: M + 160 },
+  ];
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(...TEXTO);
+  doc.text("Visitas por vendedor", M, y + 4);
+  y += 7;
+  doc.setFillColor(241, 245, 249);
+  doc.rect(M, y, LARG, 7, "F");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...CINZA);
+  cols.forEach((c) => doc.text(c.t.toUpperCase(), c.x, y + 4.8));
+  y += 7;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  for (const v of vendedores) {
+    const m = rows.filter((r) => nomeVend(r) === v);
+    const vals = [
+      limpa(v),
+      String(m.length),
+      String(m.filter((r) => r.tipo === "cliente").length),
+      String(m.filter((r) => r.tipo === "aquisicao").length),
+      String(m.filter((r) => r.resultado === "pedido_fechado").length),
+    ];
+    doc.setTextColor(...TEXTO);
+    cols.forEach((c, i) => doc.text(vals[i], c.x, y + 5));
+    doc.setDrawColor(226, 232, 240);
+    doc.line(M, y + 7.5, M + LARG, y + 7.5);
+    y += 7.5;
+  }
+  return y + 7;
 }
 
 function cabecalho(doc: JsPDF, op: Opcoes, total: number) {
