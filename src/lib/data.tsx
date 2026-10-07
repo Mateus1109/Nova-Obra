@@ -489,7 +489,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .select("id")
       .single();
     if (error || !data) {
-      avisar("Não foi possível criar o negócio.");
+      avisar(`Não foi possível criar o negócio${error?.message ? `: ${error.message}` : "."}`);
       return null;
     }
     await recarregar();

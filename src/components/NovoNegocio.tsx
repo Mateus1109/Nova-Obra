@@ -143,7 +143,7 @@ export function NovoNegocioModal({
         .single();
       if (error || !data) {
         setSalvando(false);
-        return setErro("Não foi possível criar a obra. Verifique se você pode cadastrar obras.");
+        return setErro(`Não foi possível criar a obra${error?.message ? `: ${error.message}` : "."} Verifique se você pode cadastrar obras.`);
       }
       obra = data.id;
     }

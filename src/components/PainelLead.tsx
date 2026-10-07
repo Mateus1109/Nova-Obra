@@ -27,6 +27,7 @@ import {
   Trash2,
   AlertTriangle,
   Settings2,
+  Paperclip,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -36,12 +37,13 @@ import { Avatar, Button, CampoEditavel, Select, SeloTipo, Tag } from "./ui";
 import { CampoTags, NovoLeadModal } from "./NovoLead";
 import { BuscaLead, NovoNegocioModal } from "./NovoNegocio";
 import { ListaAtividades } from "./Atividades";
+import { ListaArquivos } from "./Arquivos";
 import { ListaVisitas, SecaoObra } from "./SecaoObra";
 import { ConfirmarModal, PerderModal, SeloStatus } from "./StatusNegocio";
 import type { CampoAdicional, Historico, Lead, RelatorioVisita, ValoresCampos } from "@/lib/types";
 import { brl, corAvatar, cx, dataBR, linkWhatsApp, mapsLink } from "@/lib/utils";
 
-type Secao = "perfil" | "negocio" | "campos" | "negocios" | "atividades" | "visitas" | "historico" | "pessoas" | "endereco";
+type Secao = "perfil" | "negocio" | "campos" | "negocios" | "atividades" | "arquivos" | "visitas" | "historico" | "pessoas" | "endereco";
 
 const ITENS: { key: Secao; label: string; icon: typeof User }[] = [
   { key: "perfil", label: "Perfil", icon: User },
@@ -49,6 +51,7 @@ const ITENS: { key: Secao; label: string; icon: typeof User }[] = [
   { key: "campos", label: "Campos adicionais", icon: LayoutGrid },
   { key: "negocios", label: "Negócios", icon: Briefcase },
   { key: "atividades", label: "Atividades", icon: Activity },
+  { key: "arquivos", label: "Arquivos", icon: Paperclip },
   { key: "visitas", label: "Visitas", icon: ClipboardList },
   { key: "historico", label: "Históricos", icon: History },
   { key: "pessoas", label: "Pessoas", icon: Users },
@@ -346,6 +349,17 @@ export default function PainelLead({
             <Bloco titulo="Atividades">
               <div className="p-5">
                 <ListaAtividades oportunidadeIds={card ? [card.id, ...negocios.filter((n) => n.id !== card.id).map((n) => n.id)] : negocios.map((n) => n.id)} leadId={lead?.id ?? null} />
+              </div>
+            </Bloco>
+          )}
+          {secaoAtual === "arquivos" && (
+            <Bloco titulo="Arquivos">
+              <div className="p-5">
+                <ListaArquivos
+                  leadId={lead?.id ?? null}
+                  oportunidadeId={card?.id ?? null}
+                  oportunidadeIds={negocios.map((n) => n.id)}
+                />
               </div>
             </Bloco>
           )}
