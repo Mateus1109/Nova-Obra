@@ -88,7 +88,7 @@ export default function CadastroObra() {
           <CheckCircle2 className="text-green-500" size={52} />
           <h2 className="mt-3 text-xl font-black text-marinho-800">Obra cadastrada!</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Uma oportunidade foi criada na etapa <b>Qualificação</b>.
+            Ela já está no funil, na <b>primeira coluna</b>.
           </p>
         </Card>
       </div>
