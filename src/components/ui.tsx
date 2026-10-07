@@ -142,9 +142,16 @@ export function SeloTipo({ tipo }: { tipo: "pessoa" | "empresa" }) {
   );
 }
 
-export function Tag({ children, onRemover }: { children: ReactNode; onRemover?: () => void }) {
+/** Tag; com `cor` usa a cor configurada em Configurações → Tags */
+export function Tag({ children, onRemover, cor }: { children: ReactNode; onRemover?: () => void; cor?: string }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[0.6875rem] font-medium text-slate-600">
+    <span
+      className={cx(
+        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium",
+        !cor && "bg-slate-100 text-slate-600"
+      )}
+      style={cor ? { background: `${cor}1f`, color: cor } : undefined}
+    >
       {children}
       {onRemover && (
         <button onClick={onRemover} className="text-slate-400 hover:text-red-500" aria-label="Remover tag">

@@ -4,11 +4,11 @@ import { DataProvider } from "./lib/data";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Kanban from "./pages/Kanban";
-import Vendedores from "./pages/Vendedores";
 import Aguardando from "./pages/Aguardando";
 import Leads from "./pages/Leads";
 import Relatorios from "./pages/Relatorios";
 import Dashboard from "./pages/Dashboard";
+import Configuracoes from "./pages/Configuracoes";
 import { Spinner } from "./components/ui";
 
 function Protegido() {
@@ -34,10 +34,8 @@ function Protegido() {
                 <Route path="/pipelines/:pipelineId?" element={<Kanban />} />
                 <Route path="/leads" element={<Leads />} />
                 <Route path="/relatorios" element={<Relatorios />} />
-                <Route
-                  path="/equipe"
-                  element={isAdmin ? <Vendedores /> : <Navigate to="/" replace />}
-                />
+                <Route path="/configuracoes/:secao?" element={<Configuracoes />} />
+                <Route path="/equipe" element={<Navigate to="/configuracoes/membros" replace />} />
                 <Route
                   path="/dashboard"
                   element={pode("ver_painel") ? <Dashboard /> : <Navigate to="/" replace />}

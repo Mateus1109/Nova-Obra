@@ -1,7 +1,25 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
-import type { Atividade, Etapa, Lead, Obra, Oportunidade, Pipeline, Vendedor, Classificacao } from "./types";
+import {
+  ORIGENS,
+  SEGMENTOS,
+  type Atividade,
+  type CampoAdicional,
+  type Classificacao,
+  type Etapa,
+  type Lead,
+  type MotivoPerda,
+  type NomeLista,
+  type Obra,
+  type OpcaoLista,
+  type Oportunidade,
+  type Pipeline,
+  type PipelineMembro,
+  type TagConfig,
+  type TipoAtividadeConfig,
+  type Vendedor,
+} from "./types";
 
 export interface Card extends Oportunidade {
   obra: Obra | null;
@@ -21,8 +39,43 @@ export interface NovoNegocio {
   classificacao?: Classificacao;
 }
 
+/** Tabelas da tela Configurações (lista simples, só o administrador altera) */
+export interface LinhasConfig {
+  motivos_perda: MotivoPerda;
+  tags: TagConfig;
+  tipos_atividade: TipoAtividadeConfig;
+  listas_opcoes: OpcaoLista;
+  campos_adicionais: CampoAdicional;
+}
+export type TabelaConfig = keyof LinhasConfig;
+
 interface DataCtx {
   loading: boolean;
+  /* ---- Configurações ---- */
+  motivosPerda: MotivoPerda[];
+  tagsConfig: TagConfig[];
+  tiposAtividade: TipoAtividadeConfig[];
+  listas: OpcaoLista[];
+  camposAdicionais: CampoAdicional[];
+  pipelineMembros: PipelineMembro[];
+  /** valores da lista (origem/segmento) configurada; cai no padrão se ainda vazia */
+  opcoesLista: (lista: NomeLista) => string[];
+  /** cor configurada da tag (ou o azul padrão) */
+  corTag: (nome: string) => string;
+  salvarConfig: <T extends TabelaConfig>(tabela: T, linha: Partial<LinhasConfig[T]>) => Promise<boolean>;
+  excluirConfig: (tabela: TabelaConfig, id: string) => Promise<boolean>;
+  /* ---- Status do negócio (ações individuais e em massa) ---- */
+  ganharNegocios: (ids: string[]) => Promise<boolean>;
+  perderNegocios: (ids: string[], motivoId: string | null, descricao: string) => Promise<boolean>;
+  restaurarStatus: (ids: string[]) => Promise<boolean>;
+  /** envia para a lixeira (dá para restaurar em Configurações → Lixeira) */
+  excluirNegocios: (ids: string[]) => Promise<boolean>;
+  restaurarDaLixeira: (ids: string[]) => Promise<boolean>;
+  excluirDefinitivo: (ids: string[]) => Promise<boolean>;
+  moverNegocios: (ids: string[], etapaId: string) => Promise<boolean>;
+  /* ---- Pipeline ---- */
+  duplicarPipeline: (id: string, nome: string) => Promise<string | null>;
+  salvarPermissoesPipeline: (id: string, restrito: boolean, usuarioIds: string[]) => Promise<boolean>;
   pipelines: Pipeline[];
   etapas: Etapa[];
   cards: Card[];
@@ -69,6 +122,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [aviso, setAviso] = useState<{ msg: string; tipo: "erro" | "ok" } | null>(null);
+  const [motivosPerda, setMotivosPerda] = useState<MotivoPerda[]>([]);
+  const [tagsConfig, setTagsConfig] = useState<TagConfig[]>([]);
+  const [tiposAtividade, setTiposAtividade] = useState<TipoAtividadeConfig[]>([]);
+  const [listas, setListas] = useState<OpcaoLista[]>([]);
+  const [camposAdicionais, setCamposAdicionais] = useState<CampoAdicional[]>([]);
+  const [pipelineMembros, setPipelineMembros] = useState<PipelineMembro[]>([]);
 
   const carregou = useRef(false);
   const cardsRef = useRef<Card[]>([]);
@@ -94,17 +153,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const recarregar = useCallback(async () => {
     if (!session) return;
     if (!carregou.current) setLoading(true);
-    const [piRes, etRes, opRes, obRes, leRes, atRes, veRes] = await Promise.all([
+    const [piRes, etRes, opRes, obRes, leRes, atRes, veRes, moRes, tgRes, taRes, liRes, caRes, pmRes] = await Promise.all([
       supabase.from("pipelines").select("*").order("ordem").order("criado_em"),
       supabase.from("etapas").select("*").order("ordem"),
       supabase
         .from("oportunidades")
         .select("*, obra:obras(*), vendedor:profiles(*), lead:leads(*)")
+        .is("excluido_em", null)
         .order("criado_em", { ascending: false }),
       supabase.from("obras").select("*").order("criado_em", { ascending: false }),
       supabase.from("leads").select("*").order("nome"),
       supabase.from("atividades").select("*").eq("concluida", false).order("data_hora", { ascending: true, nullsFirst: false }),
       supabase.from("profiles").select("*").eq("role", "vendedor").eq("status", "ativo").order("nome"),
+      supabase.from("motivos_perda").select("*").order("ordem").order("criado_em"),
+      supabase.from("tags").select("*").order("nome"),
+      supabase.from("tipos_atividade").select("*").order("ordem").order("criado_em"),
+      supabase.from("listas_opcoes").select("*").order("ordem").order("valor"),
+      supabase.from("campos_adicionais").select("*").order("ordem").order("criado_em"),
+      supabase.from("pipeline_membros").select("*"),
     ]);
     if (!piRes.error) setPipelines((piRes.data as Pipeline[]) ?? []);
     if (!etRes.error) setEtapas((etRes.data as Etapa[]) ?? []);
@@ -113,6 +179,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     if (!leRes.error) setLeads((leRes.data as Lead[]) ?? []);
     if (!atRes.error) setAtividades((atRes.data as Atividade[]) ?? []);
     if (!veRes.error) setVendedores((veRes.data as Vendedor[]) ?? []);
+    if (!moRes.error) setMotivosPerda((moRes.data as MotivoPerda[]) ?? []);
+    if (!tgRes.error) setTagsConfig((tgRes.data as TagConfig[]) ?? []);
+    if (!taRes.error) setTiposAtividade((taRes.data as TipoAtividadeConfig[]) ?? []);
+    if (!liRes.error) setListas((liRes.data as OpcaoLista[]) ?? []);
+    if (!caRes.error) setCamposAdicionais((caRes.data as CampoAdicional[]) ?? []);
+    if (!pmRes.error) setPipelineMembros((pmRes.data as PipelineMembro[]) ?? []);
     carregou.current = true;
     setLoading(false);
   }, [session]);
@@ -141,6 +213,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "oportunidades" }, (p) => {
         const novo = p.new as Oportunidade;
         if (ehEco(novo.id)) return;
+        if (novo.excluido_em) {
+          setCards((cs) => cs.filter((c) => c.id !== novo.id));
+          return;
+        }
         const atual = cardsRef.current.find((c) => c.id === novo.id);
         if (!atual) return agendarSync();
         const vendedor =
@@ -161,6 +237,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "pipelines" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "atividades" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "motivos_perda" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tags" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "tipos_atividade" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "listas_opcoes" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "campos_adicionais" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pipeline_membros" }, agendarSync)
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
@@ -418,10 +500,191 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
 
 
+  /* ---------- Configurações ---------- */
+
+  const opcoesLista: DataCtx["opcoesLista"] = (lista) => {
+    const v = listas.filter((o) => o.lista === lista).map((o) => o.valor);
+    return v.length ? v : lista === "origem" ? ORIGENS : SEGMENTOS;
+  };
+
+  const corTag: DataCtx["corTag"] = (nome) =>
+    tagsConfig.find((t) => t.nome.toLowerCase() === nome.toLowerCase())?.cor ?? "#3385FF";
+
+  const salvarConfig: DataCtx["salvarConfig"] = async (tabela, linha) => {
+    const { id, criado_em, ...resto } = linha as Record<string, unknown>;
+    void criado_em;
+    const { error } = id
+      ? await supabase.from(tabela).update(resto).eq("id", id as string)
+      : await supabase.from(tabela).insert(resto);
+    if (error) {
+      avisar(/duplicate|unique/i.test(error.message) ? "Já existe um item com esse nome." : "Não foi possível salvar.");
+      return false;
+    }
+    await recarregar();
+    return true;
+  };
+
+  const excluirConfig: DataCtx["excluirConfig"] = async (tabela, id) => {
+    const { error } = await supabase.from(tabela).delete().eq("id", id);
+    if (error) {
+      avisar("Não foi possível excluir.");
+      return false;
+    }
+    await recarregar();
+    return true;
+  };
+
+  /* ---------- Status e ações em massa ---------- */
+
+  // Aplica a mudança na tela na hora e grava tudo de uma vez; se o banco recusar, sincroniza de novo
+  const atualizarVarios = async (ids: string[], mudanca: Partial<Oportunidade>, msgOk: string, msgErro: string) => {
+    if (!ids.length) return true;
+    ids.forEach(marcarEditado);
+    setCards((cs) => cs.map((c) => (ids.includes(c.id) ? { ...c, ...mudanca } : c)));
+    const { error } = await supabase.from("oportunidades").update(mudanca).in("id", ids);
+    if (error) {
+      avisar(/permiss/i.test(error.message) ? error.message : msgErro);
+      agendarSync();
+      return false;
+    }
+    avisar(msgOk, "ok");
+    return true;
+  };
+
+  const plural = (n: number, um: string, varios: string) => (n === 1 ? um : `${n} ${varios}`);
+
+  const ganharNegocios: DataCtx["ganharNegocios"] = (ids) =>
+    atualizarVarios(
+      ids,
+      { status: "ganho", status_em: new Date().toISOString(), motivo_perda_id: null },
+      plural(ids.length, "Negócio ganho! 🎉", "negócios marcados como ganhos"),
+      "Não foi possível marcar como ganho."
+    );
+
+  const perderNegocios: DataCtx["perderNegocios"] = (ids, motivoId, descricao) =>
+    atualizarVarios(
+      ids,
+      { status: "perdido", status_em: new Date().toISOString(), motivo_perda_id: motivoId, motivo_perda: descricao || null },
+      plural(ids.length, "Negócio marcado como perdido.", "negócios marcados como perdidos"),
+      "Não foi possível marcar como perdido."
+    );
+
+  const restaurarStatus: DataCtx["restaurarStatus"] = (ids) =>
+    atualizarVarios(
+      ids,
+      { status: "aberto", status_em: null, motivo_perda_id: null, motivo_perda: null },
+      plural(ids.length, "Negócio reaberto.", "negócios reabertos"),
+      "Não foi possível restaurar o status."
+    );
+
+  const moverNegocios: DataCtx["moverNegocios"] = (ids, etapaId) =>
+    atualizarVarios(ids, { etapa_id: etapaId }, plural(ids.length, "Negócio movido.", "negócios movidos"), "Não foi possível mover.");
+
+  const excluirNegocios: DataCtx["excluirNegocios"] = async (ids) => {
+    if (!ids.length) return true;
+    const anteriores = cardsRef.current.filter((c) => ids.includes(c.id));
+    ids.forEach(marcarEditado);
+    setCards((cs) => cs.filter((c) => !ids.includes(c.id)));
+    const { error } = await supabase.from("oportunidades").update({ excluido_em: new Date().toISOString() }).in("id", ids);
+    if (error) {
+      setCards((cs) => [...anteriores, ...cs]);
+      avisar(/permiss/i.test(error.message) ? error.message : "Não foi possível excluir.");
+      return false;
+    }
+    avisar(plural(ids.length, "Negócio enviado para a lixeira.", "negócios enviados para a lixeira"), "ok");
+    return true;
+  };
+
+  const restaurarDaLixeira: DataCtx["restaurarDaLixeira"] = async (ids) => {
+    const { error } = await supabase.from("oportunidades").update({ excluido_em: null }).in("id", ids);
+    if (error) {
+      avisar(/permiss/i.test(error.message) ? error.message : "Não foi possível restaurar.");
+      return false;
+    }
+    await recarregar();
+    avisar(plural(ids.length, "Negócio restaurado.", "negócios restaurados"), "ok");
+    return true;
+  };
+
+  const excluirDefinitivo: DataCtx["excluirDefinitivo"] = async (ids) => {
+    const { error } = await supabase.from("oportunidades").delete().in("id", ids);
+    if (error) {
+      avisar("Não foi possível excluir definitivamente.");
+      return false;
+    }
+    avisar(plural(ids.length, "Negócio excluído definitivamente.", "negócios excluídos definitivamente"), "ok");
+    return true;
+  };
+
+  /* ---------- Pipeline: duplicar e permissões ---------- */
+
+  const duplicarPipeline: DataCtx["duplicarPipeline"] = async (id, nome) => {
+    const orig = pipelinesRef.current.find((p) => p.id === id);
+    if (!orig) return null;
+    const ordem = (pipelinesRef.current[pipelinesRef.current.length - 1]?.ordem ?? 0) + 1;
+    const { data, error } = await supabase
+      .from("pipelines")
+      .insert({ nome, descricao: orig.descricao, grupo: orig.grupo, restrito: orig.restrito, ordem })
+      .select()
+      .single();
+    if (error || !data) {
+      avisar("Não foi possível duplicar o pipeline.");
+      return null;
+    }
+    const colunas = etapasRef.current
+      .filter((e) => e.pipeline_id === id)
+      .map((e) => ({ nome: e.nome, cor: e.cor, ordem: e.ordem, tipo: e.tipo, requisitos: e.requisitos ?? [], pipeline_id: data.id }));
+    if (colunas.length) await supabase.from("etapas").insert(colunas);
+    const membros = pipelineMembros.filter((m) => m.pipeline_id === id).map((m) => ({ pipeline_id: data.id, usuario_id: m.usuario_id }));
+    if (membros.length) await supabase.from("pipeline_membros").insert(membros);
+    await recarregar();
+    avisar(`Pipeline "${nome}" criado.`, "ok");
+    return data.id as string;
+  };
+
+  const salvarPermissoesPipeline: DataCtx["salvarPermissoesPipeline"] = async (id, restrito, usuarioIds) => {
+    const atuais = pipelineMembros.filter((m) => m.pipeline_id === id).map((m) => m.usuario_id);
+    const sair = atuais.filter((u) => !usuarioIds.includes(u));
+    const entrar = usuarioIds.filter((u) => !atuais.includes(u));
+    const r1 = await supabase.from("pipelines").update({ restrito }).eq("id", id);
+    const r2 = sair.length
+      ? await supabase.from("pipeline_membros").delete().eq("pipeline_id", id).in("usuario_id", sair)
+      : { error: null };
+    const r3 = entrar.length
+      ? await supabase.from("pipeline_membros").insert(entrar.map((u) => ({ pipeline_id: id, usuario_id: u })))
+      : { error: null };
+    await recarregar();
+    if (r1.error || r2.error || r3.error) {
+      avisar("Não foi possível salvar as permissões.");
+      return false;
+    }
+    avisar("Permissões do pipeline salvas.", "ok");
+    return true;
+  };
+
   return (
     <Ctx.Provider
       value={{
         loading,
+        motivosPerda,
+        tagsConfig,
+        tiposAtividade,
+        listas,
+        camposAdicionais,
+        pipelineMembros,
+        opcoesLista,
+        corTag,
+        salvarConfig,
+        excluirConfig,
+        ganharNegocios,
+        perderNegocios,
+        restaurarStatus,
+        excluirNegocios,
+        restaurarDaLixeira,
+        excluirDefinitivo,
+        moverNegocios,
+        duplicarPipeline,
+        salvarPermissoesPipeline,
         pipelines,
         etapas,
         cards,

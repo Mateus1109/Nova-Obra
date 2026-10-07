@@ -8,6 +8,7 @@ import {
   LogOut,
   KeyRound,
   UserCog,
+  Settings,
   Search,
   Plus,
   ChevronDown,
@@ -33,8 +34,8 @@ const nav: {
   { to: "/pipelines", label: "Pipelines", icon: Filter },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/relatorios", label: "Relatórios de visita", icon: ClipboardList },
-  { to: "/dashboard", label: "Painel", icon: BarChart3, perm: "ver_painel" },
-  { to: "/equipe", label: "Equipe e acessos", icon: UserCog, adminOnly: true },
+  { to: "/dashboard", label: "Dashboard", icon: BarChart3, perm: "ver_painel" },
+  { to: "/configuracoes", label: "Configurações", icon: Settings },
 ];
 
 /** Quantos cadastros aguardam liberação (só para o administrador) */
@@ -99,7 +100,7 @@ export default function Layout({ children }: { children: ReactNode }) {
               )}
             >
               <n.icon size={19} />
-              {n.to === "/equipe" && pendentes > 0 && (
+              {n.to === "/configuracoes" && pendentes > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-marinho-900">
                   {pendentes}
                 </span>
@@ -163,7 +164,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           >
             <n.icon size={19} />
             <span className="truncate">{n.label.split(" ")[0]}</span>
-            {n.to === "/equipe" && pendentes > 0 && (
+            {n.to === "/configuracoes" && pendentes > 0 && (
               <span className="absolute right-[calc(50%-18px)] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-marinho-900">
                 {pendentes}
               </span>

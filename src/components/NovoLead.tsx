@@ -15,18 +15,27 @@ export function CampoTags({
   onChange: (t: string[]) => void;
   sugestoes?: string[];
 }) {
+  const { tagsConfig, corTag } = useData();
   const [txt, setTxt] = useState("");
+  const [focado, setFocado] = useState(false);
   const add = (t: string) => {
     const v = t.trim();
-    if (v && !tags.includes(v)) onChange([...tags, v]);
+    // usa a grafia da tag configurada, se existir
+    const oficial = tagsConfig.find((c) => c.nome.toLowerCase() === v.toLowerCase())?.nome ?? v;
+    if (oficial && !tags.includes(oficial)) onChange([...tags, oficial]);
     setTxt("");
   };
-  const restantes = sugestoes.filter((s) => !tags.includes(s) && s.toLowerCase().includes(txt.toLowerCase())).slice(0, 6);
+  const todas = Array.from(new Set([...tagsConfig.map((t) => t.nome), ...sugestoes]));
+  const restantes = todas.filter((s) => !tags.includes(s) && s.toLowerCase().includes(txt.toLowerCase())).slice(0, 8);
   return (
     <div>
       <div className="flex min-h-[42px] flex-wrap items-center gap-1.5 rounded-md border border-[#D7DBDF] bg-white px-2 py-1.5 focus-within:border-aco-500 focus-within:ring-2 focus-within:ring-aco-100">
         {tags.map((t) => (
-          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-aco-50 px-2 py-0.5 text-xs font-medium text-aco-700">
+          <span
+            key={t}
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium"
+            style={{ background: `${corTag(t)}1f`, color: corTag(t) }}
+          >
             {t}
             <button type="button" onClick={() => onChange(tags.filter((x) => x !== t))} aria-label={`Remover ${t}`}>
               <X size={12} />
@@ -43,12 +52,16 @@ export function CampoTags({
             }
             if (e.key === "Backspace" && !txt && tags.length) onChange(tags.slice(0, -1));
           }}
-          onBlur={() => txt && add(txt)}
+          onFocus={() => setFocado(true)}
+          onBlur={() => {
+            setTimeout(() => setFocado(false), 150);
+            if (txt) add(txt);
+          }}
           placeholder={tags.length ? "" : "Selecione ou digite as tags"}
           className="min-w-[120px] flex-1 border-0 bg-transparent px-1 py-1 text-sm outline-none placeholder:text-slate-400"
         />
       </div>
-      {txt && restantes.length > 0 && (
+      {(txt || focado) && restantes.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1">
           {restantes.map((s) => (
             <button
@@ -56,7 +69,8 @@ export function CampoTags({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => add(s)}
-              className="rounded-full border border-slate-200 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-50"
+              className="rounded-full border px-2 py-0.5 text-xs hover:opacity-80"
+              style={{ borderColor: `${corTag(s)}55`, color: corTag(s) }}
             >
               + {s}
             </button>

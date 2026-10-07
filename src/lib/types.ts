@@ -19,7 +19,29 @@ export interface Etapa {
   cor: string;
   ordem: number;
   tipo: TipoEtapa;
+  /** condições para um negócio SAIR desta etapa (chaves de REQUISITOS_ETAPA) */
+  requisitos: RequisitoEtapa[];
 }
+
+/** Condições que podem ser exigidas para um negócio sair de uma etapa */
+export type RequisitoEtapa =
+  | "valor"
+  | "atendente"
+  | "obra"
+  | "previsao_fechamento"
+  | "telefone_lead"
+  | "fase_obra"
+  | "atividade_pendente";
+
+export const REQUISITOS_ETAPA: { key: RequisitoEtapa; label: string; desc: string }[] = [
+  { key: "valor", label: "Valor estimado preenchido", desc: "O negócio precisa ter valor maior que zero" },
+  { key: "atendente", label: "Atendente definido", desc: "O negócio precisa ter um responsável" },
+  { key: "obra", label: "Obra vinculada", desc: "O negócio precisa estar ligado a uma obra" },
+  { key: "previsao_fechamento", label: "Previsão de fechamento", desc: "Data prevista para fechar preenchida" },
+  { key: "telefone_lead", label: "Telefone do lead", desc: "O lead precisa ter telefone/WhatsApp" },
+  { key: "fase_obra", label: "Fase da obra", desc: "A fase da obra precisa estar informada" },
+  { key: "atividade_pendente", label: "Próxima atividade agendada", desc: "Precisa haver uma atividade em aberto" },
+];
 
 export interface Pipeline {
   id: string;
@@ -27,7 +49,82 @@ export interface Pipeline {
   descricao: string;
   grupo: string;
   ordem: number;
+  /** true = só administradores e membros listados em pipeline_membros enxergam */
+  restrito: boolean;
 }
+
+export interface PipelineMembro {
+  pipeline_id: string;
+  usuario_id: string;
+}
+
+export type StatusNegocio = "aberto" | "ganho" | "perdido";
+
+export const STATUS_NEGOCIO: Record<StatusNegocio, { label: string; bg: string; fg: string }> = {
+  aberto: { label: "Em aberto", bg: "#eff6ff", fg: "#1f6fe5" },
+  ganho: { label: "Ganho", bg: "#dcfce7", fg: "#15803d" },
+  perdido: { label: "Perdido", bg: "#fee2e2", fg: "#b91c1c" },
+};
+
+export interface MotivoPerda {
+  id: string;
+  nome: string;
+  /** exige descrição ao perder com este motivo */
+  obrigatorio: boolean;
+  ordem: number;
+  ativo: boolean;
+  criado_em: string;
+}
+
+export interface TagConfig {
+  id: string;
+  nome: string;
+  cor: string;
+  criado_em: string;
+}
+
+export interface TipoAtividadeConfig {
+  id: string;
+  nome: string;
+  icone: TipoAtividade;
+  ordem: number;
+  ativo: boolean;
+  criado_em: string;
+}
+
+export type NomeLista = "origem" | "segmento";
+
+export interface OpcaoLista {
+  id: string;
+  lista: NomeLista;
+  valor: string;
+  ordem: number;
+  criado_em: string;
+}
+
+export type TipoCampo = "texto" | "numero" | "data" | "opcoes" | "sim_nao";
+
+export const TIPO_CAMPO_LABEL: Record<TipoCampo, string> = {
+  texto: "Texto",
+  numero: "Número",
+  data: "Data",
+  opcoes: "Lista de opções",
+  sim_nao: "Sim / Não",
+};
+
+export interface CampoAdicional {
+  id: string;
+  entidade: "lead" | "negocio";
+  nome: string;
+  tipo: TipoCampo;
+  opcoes: string[];
+  ordem: number;
+  ativo: boolean;
+  criado_em: string;
+}
+
+/** valores dos campos adicionais, indexados pelo id do campo */
+export type ValoresCampos = Record<string, string | number | boolean | null>;
 
 export type TipoLead = "pessoa" | "empresa";
 
@@ -59,6 +156,7 @@ export interface Lead {
   responsavel_id: string | null;
   criado_por: string | null;
   criado_em: string;
+  campos: ValoresCampos;
 }
 
 export const SEGMENTOS = [
@@ -90,6 +188,7 @@ export interface Atividade {
   oportunidade_id: string | null;
   lead_id: string | null;
   tipo: TipoAtividade;
+  tipo_id: string | null;
   titulo: string;
   descricao: string;
   data_hora: string | null;
@@ -201,6 +300,12 @@ export interface Oportunidade {
   valor_estimado: number;
   criado_em: string;
   atualizado_em: string;
+  status: StatusNegocio;
+  status_em: string | null;
+  motivo_perda_id: string | null;
+  excluido_em: string | null;
+  excluido_por: string | null;
+  campos: ValoresCampos;
 }
 
 export interface Visita {
