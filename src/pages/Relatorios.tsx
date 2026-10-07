@@ -355,7 +355,7 @@ export default function Relatorios() {
                       </div>
                     )}
                     {r.fotos?.length > 1 && (
-                      <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[0.625rem] font-bold text-white">
                         +{r.fotos.length - 1}
                       </span>
                     )}
@@ -376,7 +376,7 @@ export default function Relatorios() {
                       <Badge bg={tp.bg} fg={tp.fg}>{tp.curto}</Badge>
                       <Badge bg={rs.bg} fg={rs.fg}>{rs.label}</Badge>
                     </div>
-                    <p className="mt-2 text-[11px] font-semibold text-slate-400">
+                    <p className="mt-2 text-[0.6875rem] font-semibold text-slate-400">
                       {dataBR(r.data_visita)}
                       {r.hora_inicio ? ` · ${r.hora_inicio.slice(0, 5)}` : ""}
                       {isAdmin && r.vendedor?.nome ? ` · ${r.vendedor.nome}` : ""}
@@ -427,7 +427,7 @@ function Kpi({ label, valor, cor, icon }: { label: string; valor: number; cor: s
       </div>
       <div className="min-w-0">
         <p className="text-xl font-black leading-tight text-marinho-800">{valor}</p>
-        <p className="truncate text-[11px] font-semibold text-slate-500">{label}</p>
+        <p className="truncate text-[0.6875rem] font-semibold text-slate-500">{label}</p>
       </div>
     </Card>
   );

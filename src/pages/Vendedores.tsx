@@ -113,7 +113,7 @@ export default function Vendedores() {
               <span className="hidden sm:inline">{a.label}</span>
               <span
                 className={cx(
-                  "rounded-full px-1.5 text-[11px]",
+                  "rounded-full px-1.5 text-[0.6875rem]",
                   a.key === "pendente" && n ? "bg-amber-400 text-marinho-900" : "bg-slate-200 text-slate-600"
                 )}
               >
@@ -207,7 +207,7 @@ function UsuarioCard({ u, onAbrir, onAlterado }: { u: Vendedor; onAbrir: () => v
             </p>
           )}
           {u.status === "pendente" && u.criado_em && (
-            <p className="mt-1 text-[11px] font-semibold text-amber-700">Cadastrou-se em {dataBR(u.criado_em)}</p>
+            <p className="mt-1 text-[0.6875rem] font-semibold text-amber-700">Cadastrou-se em {dataBR(u.criado_em)}</p>
           )}
         </div>
       </div>

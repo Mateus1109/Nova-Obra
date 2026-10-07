@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/data";
 import { Avatar, Button, Field, Input, Select, SeloTipo } from "./ui";
 import { NovoLeadModal } from "./NovoLead";
-import { CLASSIFICACOES, type Classificacao, type Lead } from "@/lib/types";
+import type { Lead } from "@/lib/types";
 import { cx } from "@/lib/utils";
 
 /** Busca de lead com lista suspensa e atalho para criar um novo. */
@@ -118,7 +118,6 @@ export function NovoNegocioModal({
   const [obraBairro, setObraBairro] = useState("");
   const [valor, setValor] = useState("");
   const [vendedor, setVendedor] = useState(isAdmin ? "" : profile?.id ?? "");
-  const [temp, setTemp] = useState<Classificacao>("morno");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -154,7 +153,6 @@ export function NovoNegocioModal({
       etapa_id: etapa,
       valor_estimado: Number(valor) || 0,
       vendedor_id: vendedor || (isAdmin ? null : profile?.id ?? null),
-      classificacao: temp,
     });
     setSalvando(false);
     if (id) {
@@ -261,22 +259,6 @@ export function NovoNegocioModal({
                   </Select>
                 </Field>
               )}
-            </div>
-
-            <div>
-              <p className="mb-1.5 text-sm font-medium text-marinho-800">Temperatura</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(["frio", "morno", "quente"] as Classificacao[]).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setTemp(c)}
-                    className={cx("rounded-md border-2 py-1.5 text-sm font-semibold", temp === c ? "border-marinho-800" : "border-transparent")}
-                    style={{ background: CLASSIFICACOES[c].bg, color: CLASSIFICACOES[c].fg }}
-                  >
-                    {CLASSIFICACOES[c].label}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {erro && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{erro}</p>}

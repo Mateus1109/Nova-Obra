@@ -21,7 +21,7 @@ export function Button({
     danger: "bg-red-600 text-white hover:bg-red-700",
     success: "bg-green-600 text-white hover:bg-green-700",
   };
-  const sizes = { sm: "px-3 py-1.5 text-sm", md: "px-4 py-2 text-sm", lg: "px-5 py-2.5 text-[15px]" };
+  const sizes = { sm: "px-3 py-1.5 text-sm", md: "px-4 py-2 text-sm", lg: "px-5 py-2.5 text-[0.9375rem]" };
   return <button className={cx(base, variants[variant], sizes[size], className)} {...p} />;
 }
 
@@ -132,11 +132,11 @@ export function Avatar({ nome, size = 36, className }: { nome: string; size?: nu
 /** Selo "Empresa" / "Pessoa" no padrão do CRM */
 export function SeloTipo({ tipo }: { tipo: "pessoa" | "empresa" }) {
   return tipo === "empresa" ? (
-    <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[11px] font-medium text-purple-700">
+    <span className="inline-flex items-center gap-1 rounded-full border border-purple-200 bg-purple-50 px-2 py-0.5 text-[0.6875rem] font-medium text-purple-700">
       <Building size={11} /> Empresa
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[11px] font-medium text-sky-700">
+    <span className="inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[0.6875rem] font-medium text-sky-700">
       <User size={11} /> Pessoa
     </span>
   );
@@ -144,7 +144,7 @@ export function SeloTipo({ tipo }: { tipo: "pessoa" | "empresa" }) {
 
 export function Tag({ children, onRemover }: { children: ReactNode; onRemover?: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+    <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[0.6875rem] font-medium text-slate-600">
       {children}
       {onRemover && (
         <button onClick={onRemover} className="text-slate-400 hover:text-red-500" aria-label="Remover tag">
@@ -187,7 +187,7 @@ export function CampoEditavel({
 
   return (
     <div className="group min-w-0">
-      <p className="text-[13px] text-slate-500">{label}</p>
+      <p className="text-[0.8125rem] text-slate-500">{label}</p>
       {editando ? (
         opcoes ? (
           <select

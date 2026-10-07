@@ -359,7 +359,7 @@ function EditarFicha({
 function Destaque({ icon, label, valor }: { icon?: React.ReactNode; label: string; valor: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+      <p className="flex items-center gap-1 text-[0.6875rem] font-bold uppercase tracking-wide text-slate-500">
         {icon} {label}
       </p>
       <p className="mt-0.5 truncate font-bold text-marinho-800">{valor}</p>

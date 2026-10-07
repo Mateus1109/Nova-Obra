@@ -36,7 +36,7 @@ export default function Leads() {
     <div>
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[28px] font-semibold leading-tight text-marinho-800">Leads</h1>
+          <h1 className="text-[1.75rem] font-semibold leading-tight text-marinho-800">Leads</h1>
           <p className="text-slate-500">Construtoras, clientes e contatos ({leads.length})</p>
         </div>
         <Button onClick={() => setNovo(true)}>
@@ -92,7 +92,7 @@ export default function Leads() {
                 className="grid w-full grid-cols-2 items-center gap-3 px-4 py-3 text-left hover:bg-slate-50 md:grid-cols-12"
               >
                 <div className="col-span-2 flex min-w-0 items-center gap-3 md:col-span-4">
-                  <Avatar nome={l.nome} size={36} />
+                  <Avatar nome={l.nome} size={30} />
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
                       <p className="truncate font-medium text-marinho-800">{l.nome_exibicao || l.nome}</p>

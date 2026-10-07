@@ -464,7 +464,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         >
           <span
             className={
-              "grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[11px] font-bold text-white " +
+              "grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[0.6875rem] font-bold text-white " +
               (aviso.tipo === "ok" ? "bg-green-600" : "bg-red-600")
             }
           >

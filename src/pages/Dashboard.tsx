@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie, Legend,
+  Legend,
 } from "recharts";
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import { Building2, CheckCheck, TrendingUp, AlertTriangle, Flame, Navigation } from "lucide-react";
 import { tituloCard, useData } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { Card, Empty, Spinner } from "@/components/ui";
-import { CLASSIFICACOES, type Classificacao } from "@/lib/types";
-import { diasDesde, isoLocal, mapsLink } from "@/lib/utils";
+import { brl, diasDesde, isoLocal, mapsLink } from "@/lib/utils";
 
 const PARADA_DIAS = 7;
 
@@ -61,14 +60,16 @@ export default function Dashboard() {
     [vendedores, visitas, cards]
   );
 
-  const porClasse = useMemo(
+  const valorPorEtapa = useMemo(
     () =>
-      (["quente", "morno", "frio"] as Classificacao[]).map((c) => ({
-        name: CLASSIFICACOES[c].label,
-        value: cards.filter((x) => x.classificacao === c).length,
-        cor: CLASSIFICACOES[c].fg,
-      })),
-    [cards]
+      etapas
+        .filter((e) => e.tipo === "aberta")
+        .map((e) => ({
+          etapa: e.nome,
+          cor: e.cor,
+          valor: cards.filter((c) => c.etapa_id === e.id).reduce((s, c) => s + (c.valor_estimado || 0), 0),
+        })),
+    [cards, etapas]
   );
 
   const paradas = useMemo(
@@ -128,17 +129,18 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </Card>
 
-        {/* Classificação */}
+        {/* Valor em negociação */}
         <Card className="p-5">
-          <h3 className="mb-4 font-bold text-marinho-800">Obras por classificação</h3>
+          <h3 className="mb-4 font-bold text-marinho-800">Valor em negociação por etapa</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={porClasse} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
-                {porClasse.map((c, i) => (<Cell key={i} fill={c.cor} />))}
-              </Pie>
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Tooltip />
-            </PieChart>
+            <BarChart data={valorPorEtapa} layout="vertical" margin={{ left: 10, right: 20 }}>
+              <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+              <YAxis type="category" dataKey="etapa" tick={{ fontSize: 11 }} width={110} />
+              <Tooltip formatter={(v: number) => brl(v)} cursor={{ fill: "#f1f5f9" }} />
+              <Bar dataKey="valor" radius={[0, 6, 6, 0]}>
+                {valorPorEtapa.map((f, i) => (<Cell key={i} fill={f.cor} />))}
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </Card>
 

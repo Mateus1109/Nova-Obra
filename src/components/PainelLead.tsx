@@ -105,12 +105,12 @@ export default function PainelLead({
         </button>
 
         {/* -------- Coluna da esquerda -------- */}
-        <aside className="flex-shrink-0 overflow-y-auto border-r border-slate-200 bg-white lg:w-[340px]">
-          <div className="h-28" style={{ background: cor.banner }} />
-          <div className="-mt-16 flex flex-col items-center px-6 text-center">
+        <aside className="flex-shrink-0 overflow-y-auto border-r border-slate-200 bg-white lg:w-[21rem]">
+          <div className="h-24" style={{ background: cor.banner }} />
+          <div className="-mt-14 flex flex-col items-center px-6 text-center">
             <div className="relative">
               <div className="rounded-full bg-white p-1.5">
-                <Avatar nome={nome} size={124} />
+                <Avatar nome={nome} size={100} />
               </div>
               <button
                 onClick={() => setSecao("perfil")}
@@ -154,7 +154,7 @@ export default function PainelLead({
                     ))}
                     <button
                       onClick={() => setEditTags(true)}
-                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-[11px] text-slate-500 hover:border-aco-500 hover:text-aco-600"
+                      className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-[0.6875rem] text-slate-500 hover:border-aco-500 hover:text-aco-600"
                     >
                       <Plus size={11} /> <TagIcon size={11} />
                     </button>
@@ -187,7 +187,7 @@ export default function PainelLead({
 
           <div className="space-y-3 px-6 pt-5">
             <div>
-              <p className="mb-1.5 text-left text-[13px] text-slate-500">Atendente responsável</p>
+              <p className="mb-1.5 text-left text-[0.8125rem] text-slate-500">Atendente responsável</p>
               {card ? (
                 <Select value={card.vendedor_id ?? ""} disabled={!isAdmin} onChange={(e) => setResponsavel(card.id, e.target.value || null)}>
                   <option value="">+ Atribuir atendente</option>
@@ -207,7 +207,7 @@ export default function PainelLead({
             {card && (
               <>
                 <div>
-                  <p className="mb-1.5 text-left text-[13px] text-slate-500">
+                  <p className="mb-1.5 text-left text-[0.8125rem] text-slate-500">
                     Etapa · {pipelines.find((p) => p.id === colunasDoCard[0]?.pipeline_id)?.nome}
                   </p>
                   <Select value={card.etapa_id} disabled={!podeMover} onChange={(e) => mudarEtapa(e.target.value)}>
@@ -215,18 +215,6 @@ export default function PainelLead({
                       <option key={e.id} value={e.id}>{e.nome}</option>
                     ))}
                   </Select>
-                </div>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(["frio", "morno", "quente"] as Classificacao[]).map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => podeMover && atualizarOportunidade(card.id, { classificacao: c })}
-                      className={cx("rounded-md border-2 py-1.5 text-xs font-semibold", card.classificacao === c ? "border-marinho-800" : "border-transparent")}
-                      style={{ background: CLASSIFICACOES[c].bg, color: CLASSIFICACOES[c].fg }}
-                    >
-                      {CLASSIFICACOES[c].label}
-                    </button>
-                  ))}
                 </div>
               </>
             )}
@@ -506,7 +494,7 @@ function SecaoNegocio({ card }: { card: Card }) {
             onSalvar={(v) => atualizarOportunidade(card.id, { proxima_etapa_data: v || null })}
           />
           <div className="sm:col-span-3">
-            <p className="mb-1.5 text-[13px] text-slate-500">Tags do negócio</p>
+            <p className="mb-1.5 text-[0.8125rem] text-slate-500">Tags do negócio</p>
             <CampoTags tags={card.tags ?? []} onChange={(t) => atualizarOportunidade(card.id, { tags: t })} />
           </div>
           {card.motivo_perda && (

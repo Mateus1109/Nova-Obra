@@ -99,9 +99,9 @@ export default function Layout({ children }: { children: ReactNode }) {
                 ativo(n.to) ? "bg-aco-50 text-aco-600" : "text-marinho-800 hover:bg-slate-100"
               )}
             >
-              <n.icon size={21} />
+              <n.icon size={19} />
               {n.to === "/equipe" && pendentes > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-marinho-900">
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-marinho-900">
                   {pendentes}
                 </span>
               )}
@@ -147,7 +147,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </header>
 
       {/* Conteúdo */}
-      <main className={cx("min-w-0 flex-1 pb-20 pt-14 lg:pb-0 lg:pt-0", noPipeline && painelAberto ? "lg:ml-[352px]" : "lg:ml-16")}>
+      <main className={cx("min-w-0 flex-1 pb-20 pt-14 lg:pb-0 lg:pt-0", noPipeline && painelAberto ? "lg:ml-[22rem]" : "lg:ml-16")}>
         <div className={cx("px-4 py-5 sm:px-6 lg:py-7", noPipeline ? "h-full" : "mx-auto max-w-7xl")}>{children}</div>
       </main>
 
@@ -158,14 +158,14 @@ export default function Layout({ children }: { children: ReactNode }) {
             key={n.to}
             to={n.to}
             className={cx(
-              "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium",
+              "relative flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2 text-[0.625rem] font-medium",
               ativo(n.to) ? "text-aco-600" : "text-slate-500"
             )}
           >
-            <n.icon size={21} />
+            <n.icon size={19} />
             <span className="truncate">{n.label.split(" ")[0]}</span>
             {n.to === "/equipe" && pendentes > 0 && (
-              <span className="absolute right-[calc(50%-18px)] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[10px] font-bold text-marinho-900">
+              <span className="absolute right-[calc(50%-18px)] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-marinho-900">
                 {pendentes}
               </span>
             )}
@@ -238,7 +238,7 @@ function PainelPipelines() {
                       key={p.id}
                       to={`/pipelines/${p.id}`}
                       className={cx(
-                        "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[15px]",
+                        "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[0.9375rem]",
                         atual === p.id ? "bg-aco-50 text-marinho-800" : "text-marinho-800 hover:bg-slate-50"
                       )}
                     >

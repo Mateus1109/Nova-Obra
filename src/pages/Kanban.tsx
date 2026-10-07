@@ -190,7 +190,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
       {/* Cabeçalho */}
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="truncate text-[28px] font-semibold leading-tight text-marinho-800">{pipeline.nome}</h1>
+          <h1 className="truncate text-[1.75rem] font-semibold leading-tight text-marinho-800">{pipeline.nome}</h1>
           <p className="truncate text-slate-500">{pipeline.descricao || "Funil de vendas"}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -211,14 +211,6 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
                       <option value="_sem">Sem atendente</option>
                       {vendedores.map((v) => (
                         <option key={v.id} value={v.id}>{v.nome}</option>
-                      ))}
-                    </Select>
-                  </Field>
-                  <Field label="Temperatura">
-                    <Select value={fClass} onChange={(e) => setFClass(e.target.value)}>
-                      <option value="">Todas</option>
-                      {(["quente", "morno", "frio"] as Classificacao[]).map((c) => (
-                        <option key={c} value={c}>{CLASSIFICACOES[c].label}</option>
                       ))}
                     </Select>
                   </Field>
@@ -311,7 +303,6 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
             onRemover={() => setFVendedor("")}
           />
         )}
-        {fClass && <Chip rotulo="Temperatura" valor={CLASSIFICACOES[fClass as Classificacao].label} onRemover={() => setFClass("")} />}
         {fTag && <Chip rotulo="Tag" valor={fTag} onRemover={() => setFTag("")} />}
       </div>
 
@@ -494,7 +485,7 @@ function Coluna({
   return (
     <div
       className={cx(
-        "flex w-[min(340px,85vw)] flex-shrink-0 flex-col rounded-lg border border-slate-200 bg-white transition",
+        "flex w-[min(21.25rem,85vw)] flex-shrink-0 flex-col rounded-lg border border-slate-200 bg-white transition",
         isOver && "ring-2 ring-aco-500"
       )}
       style={{ borderTop: `4px solid ${etapa.cor}` }}
@@ -595,7 +586,7 @@ function Coluna({
       {pode("cadastrar_obras") && (
         <button
           onClick={onNovoNegocio}
-          className="flex items-center justify-center gap-1.5 border-t border-slate-200 py-3 text-[15px] text-marinho-800 hover:bg-slate-50"
+          className="flex items-center justify-center gap-1.5 border-t border-slate-200 py-3 text-[0.9375rem] text-marinho-800 hover:bg-slate-50"
         >
           <Plus size={17} /> Novo negócio
         </button>
@@ -623,7 +614,6 @@ function KanbanCard({
   const stop = (e: React.PointerEvent | React.MouseEvent) => e.stopPropagation();
   const [tags, setTags] = useState(false);
   const nome = tituloCard(card);
-  const cl = CLASSIFICACOES[card.classificacao];
   const Icone = atividade ? ICONE_ATIVIDADE[atividade.tipo] : CalendarClock;
 
   return (
@@ -639,20 +629,17 @@ function KanbanCard({
       )}
     >
       <div className="flex items-start gap-3">
-        <Avatar nome={nome} size={38} />
+        <Avatar nome={nome} size={32} />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className="truncate text-[17px] font-semibold text-marinho-800">{nome}</p>
+            <p className="truncate text-[1.0625rem] font-semibold text-marinho-800">{nome}</p>
             {card.lead && <SeloTipo tipo={card.lead.tipo} />}
           </div>
           <p className={cx("truncate text-sm underline-offset-2", card.obra ? "text-aco-600 underline" : "text-aco-600 underline")}>
             {card.obra?.nome_obra ?? "Sem obra"}
           </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <span className="text-xs text-slate-400">#{numero}</span>
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: cl.fg }} title={`Temperatura: ${cl.label}`} />
-        </div>
+        <span className="text-xs text-slate-400">#{numero}</span>
       </div>
 
       <div className="mt-3 space-y-1.5 text-sm">
@@ -669,7 +656,7 @@ function KanbanCard({
         <p className="flex items-center gap-2.5 text-slate-500">
           <CalendarDays size={16} className="flex-shrink-0" />
           {dataBR(card.criado_em)}
-          {card.obra?.fase_obra && <span className="ml-auto rounded bg-slate-100 px-1.5 text-[11px] text-slate-600">{FASE_LABEL[card.obra.fase_obra]}</span>}
+          {card.obra?.fase_obra && <span className="ml-auto rounded bg-slate-100 px-1.5 text-[0.6875rem] text-slate-600">{FASE_LABEL[card.obra.fase_obra]}</span>}
         </p>
         <div className="flex items-center gap-2.5 text-slate-500">
           <Icone size={16} className="flex-shrink-0" />
@@ -726,7 +713,7 @@ function NovaColuna({ pipelineId }: { pipelineId: string }) {
   }
 
   return (
-    <div className="w-[min(340px,85vw)] flex-shrink-0">
+    <div className="w-[min(21.25rem,85vw)] flex-shrink-0">
       {aberto ? (
         <div className="rounded-lg border border-slate-200 bg-white p-3">
           <Input
@@ -749,7 +736,7 @@ function NovaColuna({ pipelineId }: { pipelineId: string }) {
       ) : (
         <button
           onClick={() => setAberto(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-100 py-3.5 text-[15px] text-slate-500 hover:bg-slate-200 hover:text-marinho-800"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-100 py-3.5 text-[0.9375rem] text-slate-500 hover:bg-slate-200 hover:text-marinho-800"
         >
           <Plus size={17} /> Nova coluna
         </button>
@@ -878,19 +865,16 @@ function ListaView({
         Nenhum negócio com os filtros atuais.
       </div>
     );
-  const proxCl: Record<Classificacao, Classificacao> = { frio: "morno", morno: "quente", quente: "frio" };
   return (
     <div className="mt-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
       <div className="hidden grid-cols-12 gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 lg:grid">
         <div className="col-span-4">Lead / obra</div>
         <div className="col-span-2">Atendente</div>
-        <div className="col-span-3">Etapa</div>
-        <div className="col-span-1">Temp.</div>
+        <div className="col-span-4">Etapa</div>
         <div className="col-span-2 text-right">Valor</div>
       </div>
       <div className="divide-y divide-slate-100">
         {cards.map((c) => {
-          const cl = CLASSIFICACOES[c.classificacao];
           return (
             <div key={c.id} className="grid grid-cols-2 items-center gap-2 px-4 py-3 lg:grid-cols-12">
               <button onClick={() => onOpen(c.id)} className="col-span-2 flex items-center gap-3 text-left lg:col-span-4">
@@ -901,22 +885,12 @@ function ListaView({
                 </div>
               </button>
               <p className="truncate text-sm text-marinho-800 lg:col-span-2">{c.vendedor?.nome ?? "Sem atendente"}</p>
-              <div className="lg:col-span-3">
+              <div className="lg:col-span-4">
                 <Select value={c.etapa_id} onChange={(e) => onEtapa(c, e.target.value)} className="py-1.5 text-sm">
                   {etapas.map((et) => (
                     <option key={et.id} value={et.id}>{et.nome}</option>
                   ))}
                 </Select>
-              </div>
-              <div className="lg:col-span-1">
-                <button
-                  onClick={() => onClass(c.id, proxCl[c.classificacao])}
-                  title="Clique para alternar"
-                  className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                  style={{ background: cl.bg, color: cl.fg }}
-                >
-                  {cl.label}
-                </button>
               </div>
               <p className="text-right font-semibold text-marinho-800 lg:col-span-2">{brl(c.valor_estimado || 0)}</p>
             </div>

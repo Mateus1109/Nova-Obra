@@ -91,7 +91,7 @@ export function NovaAtividadeModal({
                 type="button"
                 onClick={() => setTipo(t)}
                 className={cx(
-                  "flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[11px] font-medium transition",
+                  "flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[0.6875rem] font-medium transition",
                   tipo === t ? "border-aco-500 bg-aco-50 text-aco-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                 )}
               >

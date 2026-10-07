@@ -12,10 +12,21 @@ body,
   height: 100%;
 }
 
+/* No computador o CRM fica mais compacto, na mesma escala do DataCrazy (1rem = 13px).
+   No celular mantém 16px para os campos não darem zoom ao tocar. */
+@media (min-width: 1024px) {
+  html {
+    font-size: 13px;
+  }
+}
+
 body {
   margin: 0;
   font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  letter-spacing: -0.006em;
   background: #f8fafc;
   color: #020817;
 }
