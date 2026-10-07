@@ -81,11 +81,11 @@ export default function Vendedores() {
   const lista = porStatus[aba];
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black text-marinho-800">Equipe e acessos</h1>
-          <p className="text-sm text-slate-500">
+    <div className="max-w-4xl">
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 basis-[12rem]">
+          <h1 className="text-[1.375rem] font-semibold leading-tight text-marinho-800 lg:text-[1.75rem]">Membros</h1>
+          <p className="mt-1 text-sm text-slate-500 lg:text-[0.9375rem]">
             Quem se cadastra fica aguardando. Você libera e escolhe o que cada pessoa pode fazer.
           </p>
         </div>

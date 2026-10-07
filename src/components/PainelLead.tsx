@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   X,
   User,
@@ -19,23 +20,33 @@ import {
   Building2,
   HardHat,
   Navigation,
+  LayoutGrid,
+  ThumbsUp,
+  ThumbsDown,
+  RotateCcw,
+  Trash2,
+  AlertTriangle,
+  Settings2,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { tituloCard, useData, type Card } from "@/lib/data";
+import { faltandoParaSair } from "@/lib/requisitos";
 import { Avatar, Button, CampoEditavel, Select, SeloTipo, Tag } from "./ui";
 import { CampoTags, NovoLeadModal } from "./NovoLead";
 import { BuscaLead, NovoNegocioModal } from "./NovoNegocio";
 import { ListaAtividades } from "./Atividades";
 import { ListaVisitas, SecaoObra } from "./SecaoObra";
-import { CLASSIFICACOES, ORIGENS, SEGMENTOS, type Classificacao, type Historico, type Lead, type RelatorioVisita } from "@/lib/types";
+import { ConfirmarModal, PerderModal, SeloStatus } from "./StatusNegocio";
+import type { CampoAdicional, Historico, Lead, RelatorioVisita, ValoresCampos } from "@/lib/types";
 import { brl, corAvatar, cx, dataBR, linkWhatsApp, mapsLink } from "@/lib/utils";
 
-type Secao = "perfil" | "negocio" | "negocios" | "atividades" | "visitas" | "historico" | "pessoas" | "endereco";
+type Secao = "perfil" | "negocio" | "campos" | "negocios" | "atividades" | "visitas" | "historico" | "pessoas" | "endereco";
 
 const ITENS: { key: Secao; label: string; icon: typeof User }[] = [
   { key: "perfil", label: "Perfil", icon: User },
   { key: "negocio", label: "Negócio e obra", icon: HardHat },
+  { key: "campos", label: "Campos adicionais", icon: LayoutGrid },
   { key: "negocios", label: "Negócios", icon: Briefcase },
   { key: "atividades", label: "Atividades", icon: Activity },
   { key: "visitas", label: "Visitas", icon: ClipboardList },
@@ -53,11 +64,23 @@ export default function PainelLead({
   leadId?: string | null;
   cardId?: string | null;
   onClose: () => void;
-  /** Mudança de etapa passa pelo quadro (pede confirmação em ganho/perdido) */
+  /** Mudança de etapa passa pelo quadro (confere as condições da etapa e pede confirmação em ganho/perdido) */
   onMudarEtapa?: (card: Card, etapaId: string) => void;
 }) {
-  const { cards, leads, etapas, pipelines, vendedores, atualizarLead, atualizarOportunidade, setResponsavel, moverEtapa, recarregar } =
-    useData();
+  const {
+    cards,
+    leads,
+    etapas,
+    pipelines,
+    vendedores,
+    atividades,
+    corTag,
+    atualizarLead,
+    atualizarOportunidade,
+    setResponsavel,
+    moverEtapa,
+    recarregar,
+  } = useData();
   const { isAdmin, pode } = useAuth();
   const podeMover = pode("mover_funil");
   const [cardAtivoId, setCardAtivoId] = useState<string | null>(cardId ?? null);
@@ -67,60 +90,104 @@ export default function PainelLead({
   const negocios = useMemo(() => (lead ? cards.filter((c) => c.lead_id === lead.id) : card ? [card] : []), [cards, lead, card]);
   const [secao, setSecao] = useState<Secao>(cardId ? "negocio" : "perfil");
   const [editTags, setEditTags] = useState(false);
+  /** condições que faltam para o negócio sair da etapa atual (aviso abaixo da etapa) */
+  const [faltando, setFaltando] = useState<{ etapa: string; itens: string[] } | null>(null);
+  const rolagem = useRef<HTMLDivElement>(null);
+  const menuCelular = useRef<HTMLElement>(null);
 
   const nome = lead ? lead.nome_exibicao || lead.nome : card ? tituloCard(card) : "—";
   const cor = corAvatar(nome);
-  const ganhou = negocios.some((c) => etapas.find((e) => e.id === c.etapa_id)?.tipo === "ganho");
+  const ganhou = negocios.some((c) => c.status === "ganho" || etapas.find((e) => e.id === c.etapa_id)?.tipo === "ganho");
   const wa = linkWhatsApp(lead?.telefone);
   const itens = ITENS.filter((i) => (i.key === "negocio" ? !!card : i.key === "pessoas" ? !!lead : true));
+  // negócio excluído/fora de alcance: volta para o perfil
+  const secaoAtual: Secao = secao === "negocio" && !card ? "perfil" : secao;
 
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      // Esc dentro de um campo só sai do campo
+      if ((e.target as HTMLElement | null)?.closest?.("input, textarea, select")) return;
+      onClose();
+    };
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, [onClose]);
 
+  useEffect(() => setFaltando(null), [card?.id, card?.etapa_id, card?.status]);
+
   const mudarEtapa = (etapaId: string) => {
-    if (!card) return;
-    if (onMudarEtapa) onMudarEtapa(card, etapaId);
-    else moverEtapa(card.id, etapaId);
+    if (!card || etapaId === card.etapa_id) return;
+    setFaltando(null);
+    if (onMudarEtapa) return onMudarEtapa(card, etapaId);
+    // fora do funil (ex.: página Leads) as condições da etapa são conferidas aqui
+    const atual = etapas.find((e) => e.id === card.etapa_id);
+    const falta = faltandoParaSair(card, atual, atividades);
+    if (falta.length) return setFaltando({ etapa: atual?.nome ?? "", itens: falta });
+    moverEtapa(card.id, etapaId);
   };
   const salvarLead = (patch: Partial<Lead>) => lead && atualizarLead(lead.id, patch);
   const colunasDoCard = card
     ? etapas.filter((e) => e.pipeline_id === etapas.find((x) => x.id === card.etapa_id)?.pipeline_id)
     : [];
 
+  // No celular o painel rola inteiro e o menu fica grudado no topo: ao trocar de seção volta para o começo dela
+  const irPara = (s: Secao) => {
+    setSecao(s);
+    const r = rolagem.current;
+    const m = menuCelular.current;
+    if (r && m && m.offsetParent && r.scrollTop > m.offsetTop) r.scrollTo({ top: m.offsetTop });
+  };
+
+  const menu = (celular: boolean) =>
+    itens.map((i) => (
+      <button
+        key={i.key}
+        onClick={() => irPara(i.key)}
+        className={cx(
+          "flex flex-shrink-0 items-center whitespace-nowrap rounded-lg text-sm font-medium transition",
+          celular ? "gap-2 px-3 py-2" : "w-full gap-3 px-3 py-2.5",
+          secaoAtual === i.key ? "bg-aco-50 text-aco-600" : "text-slate-600 hover:bg-slate-50"
+        )}
+      >
+        <i.icon size={celular ? 16 : 17} />
+        <span className="flex-1 text-left">{i.label}</span>
+        {!celular && secaoAtual === i.key && <ChevronRight size={16} />}
+      </button>
+    ));
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-marinho-900/40" onClick={onClose}>
       <div
-        className="relative flex h-full w-full max-w-[1180px] flex-col overflow-hidden bg-slate-50 shadow-cardhover lg:w-[calc(100%-96px)] lg:flex-row"
+        ref={rolagem}
+        className="relative flex h-full w-full max-w-[1180px] flex-col overflow-y-auto overscroll-contain bg-slate-50 shadow-cardhover lg:w-[calc(100%-96px)] lg:flex-row lg:overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
-          className="absolute right-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-card hover:bg-slate-50 lg:left-3 lg:right-auto"
+          className="fixed right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-card hover:bg-slate-50 lg:absolute lg:left-3 lg:right-auto"
           aria-label="Fechar"
         >
           <X size={18} />
         </button>
 
         {/* -------- Coluna da esquerda -------- */}
-        <aside className="flex-shrink-0 overflow-y-auto border-r border-slate-200 bg-white lg:w-[21rem]">
-          <div className="h-24" style={{ background: cor.banner }} />
+        <aside className="flex-shrink-0 bg-white pb-5 lg:w-[21rem] lg:overflow-y-auto lg:border-r lg:border-slate-200 lg:pb-0">
+          <div className="h-20 lg:h-24" style={{ background: cor.banner }} />
           <div className="-mt-14 flex flex-col items-center px-6 text-center">
             <div className="relative">
               <div className="rounded-full bg-white p-1.5">
                 <Avatar nome={nome} size={100} />
               </div>
               <button
-                onClick={() => setSecao("perfil")}
+                onClick={() => irPara("perfil")}
                 className="absolute bottom-2 right-1 grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-marinho-800 shadow-card hover:bg-slate-50"
                 aria-label="Editar perfil"
               >
                 <Pencil size={15} />
               </button>
             </div>
-            <h2 className="mt-2 text-xl font-semibold text-marinho-800">{nome}</h2>
+            <h2 className="mt-2 text-xl font-semibold text-marinho-800 [overflow-wrap:anywhere]">{nome}</h2>
             <div className="mt-2 flex flex-wrap justify-center gap-1.5">
               <span
                 className={cx(
@@ -150,11 +217,12 @@ export default function PainelLead({
                 ) : (
                   <div className="flex flex-wrap justify-center gap-1.5">
                     {(lead.tags ?? []).map((t) => (
-                      <Tag key={t}>{t}</Tag>
+                      <Tag key={t} cor={corTag(t)}>{t}</Tag>
                     ))}
                     <button
                       onClick={() => setEditTags(true)}
                       className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-[0.6875rem] text-slate-500 hover:border-aco-500 hover:text-aco-600"
+                      aria-label="Editar tags"
                     >
                       <Plus size={11} /> <TagIcon size={11} />
                     </button>
@@ -215,32 +283,44 @@ export default function PainelLead({
                       <option key={e.id} value={e.id}>{e.nome}</option>
                     ))}
                   </Select>
+                  {faltando && (
+                    <div role="alert" className="mt-2 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-left text-[0.8125rem] text-amber-800">
+                      <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold">
+                          Para sair de {faltando.etapa ? `“${faltando.etapa}”` : "esta etapa"} falta:
+                        </p>
+                        <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                          {faltando.itens.map((i) => (
+                            <li key={i}>{i}</li>
+                          ))}
+                        </ul>
+                      </div>
+                      <button onClick={() => setFaltando(null)} className="text-amber-600 hover:text-amber-800" aria-label="Fechar aviso">
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
                 </div>
+                <BlocoStatus card={card} onExcluido={onClose} />
               </>
             )}
           </div>
 
-          <nav className="flex gap-1 overflow-x-auto px-4 py-5 lg:flex-col lg:overflow-visible">
-            {itens.map((i) => (
-              <button
-                key={i.key}
-                onClick={() => setSecao(i.key)}
-                className={cx(
-                  "flex flex-shrink-0 items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2.5 text-sm font-medium transition lg:w-full",
-                  secao === i.key ? "bg-aco-50 text-aco-600" : "text-slate-600 hover:bg-slate-50"
-                )}
-              >
-                <i.icon size={17} />
-                <span className="flex-1 text-left">{i.label}</span>
-                {secao === i.key && <ChevronRight size={16} className="hidden lg:block" />}
-              </button>
-            ))}
-          </nav>
+          <nav className="hidden flex-col gap-1 px-4 py-5 lg:flex">{menu(false)}</nav>
         </aside>
 
+        {/* Menu do celular: grudado no topo enquanto rola */}
+        <nav
+          ref={menuCelular}
+          className="sticky top-0 z-10 flex flex-shrink-0 gap-1 overflow-x-auto border-y border-slate-200 bg-white py-2 pl-3 pr-14 lg:hidden"
+        >
+          {menu(true)}
+        </nav>
+
         {/* -------- Conteúdo -------- */}
-        <main className="flex-1 overflow-y-auto p-4 pt-14 sm:p-6 lg:pt-6">
-          {secao === "perfil" && (
+        <div className="min-w-0 flex-1 p-4 sm:p-6 lg:overflow-y-auto">
+          {secaoAtual === "perfil" && (
             <SecaoPerfil lead={lead} card={card} onVincularLead={async (id) => {
               if (!card) return;
               await atualizarOportunidade(card.id, { lead_id: id });
@@ -248,32 +328,129 @@ export default function PainelLead({
               recarregar();
             }} />
           )}
-          {secao === "negocio" && card && <SecaoNegocio card={card} />}
-          {secao === "negocios" && (
+          {secaoAtual === "negocio" && card && <SecaoNegocio card={card} />}
+          {secaoAtual === "campos" && <SecaoCampos lead={lead} card={card} />}
+          {secaoAtual === "negocios" && (
             <SecaoNegocios
               lead={lead}
               negocios={negocios}
               onAbrir={(id) => {
                 setCardAtivoId(id);
-                setSecao("negocio");
+                irPara("negocio");
               }}
             />
           )}
-          {secao === "atividades" && (
+          {secaoAtual === "atividades" && (
             <Bloco titulo="Atividades">
               <div className="p-5">
                 <ListaAtividades oportunidadeIds={card ? [card.id, ...negocios.filter((n) => n.id !== card.id).map((n) => n.id)] : negocios.map((n) => n.id)} leadId={lead?.id ?? null} />
               </div>
             </Bloco>
           )}
-          {secao === "visitas" && <SecaoVisitas obraIds={negocios.map((n) => n.obra_id).filter(Boolean) as string[]} />}
-          {secao === "historico" && <SecaoHistorico negocioIds={negocios.map((n) => n.id)} leadId={lead?.id ?? null} />}
-          {secao === "pessoas" && lead && <SecaoPessoas lead={lead} onAbrir={(id) => { setLeadAtualId(id); setCardAtivoId(null); setSecao("perfil"); }} />}
-          {secao === "endereco" && (
+          {secaoAtual === "visitas" && <SecaoVisitas obraIds={negocios.map((n) => n.obra_id).filter(Boolean) as string[]} />}
+          {secaoAtual === "historico" && <SecaoHistorico negocioIds={negocios.map((n) => n.id)} leadId={lead?.id ?? null} />}
+          {secaoAtual === "pessoas" && lead && <SecaoPessoas lead={lead} onAbrir={(id) => { setLeadAtualId(id); setCardAtivoId(null); irPara("perfil"); }} />}
+          {secaoAtual === "endereco" && (
             <SecaoEndereco lead={lead} card={card} onSalvar={salvarLead} />
           )}
-        </main>
+        </div>
       </div>
+    </div>
+  );
+}
+
+/* ---------------- Status do negócio (Ganhar / Perder / Restaurar / Excluir) ---------------- */
+
+function BlocoStatus({ card, onExcluido }: { card: Card; onExcluido: () => void }) {
+  const { motivosPerda, ganharNegocios, restaurarStatus, excluirNegocios } = useData();
+  const { pode } = useAuth();
+  const podeMover = pode("mover_funil");
+  const podeExcluir = pode("excluir_obras");
+  const [perder, setPerder] = useState(false);
+  const [excluir, setExcluir] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
+  const status = card.status ?? "aberto";
+  const motivo = motivosPerda.find((m) => m.id === card.motivo_perda_id);
+  const quando = card.status_em
+    ? new Date(card.status_em).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
+    : null;
+
+  const executar = async (acao: () => Promise<unknown>) => {
+    setOcupado(true);
+    await acao();
+    setOcupado(false);
+  };
+
+  if (status === "aberto" && !podeMover && !podeExcluir) return null;
+
+  return (
+    <div className="rounded-lg border border-slate-200 p-3 text-left">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[0.8125rem] text-slate-500">Status do negócio</p>
+        <SeloStatus status={status} mostrarAberto />
+      </div>
+
+      {status === "aberto" ? (
+        podeMover && (
+          <div className="mt-2.5 grid grid-cols-2 gap-2">
+            <Button size="sm" variant="success" disabled={ocupado} onClick={() => executar(() => ganharNegocios([card.id]))}>
+              <ThumbsUp size={15} /> Ganhar
+            </Button>
+            <button
+              type="button"
+              disabled={ocupado}
+              onClick={() => setPerder(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-amber-400 px-3 py-1.5 text-sm font-semibold text-amber-950 transition hover:bg-amber-500 active:scale-[.98] disabled:pointer-events-none disabled:opacity-50"
+            >
+              <ThumbsDown size={15} /> Perder
+            </button>
+          </div>
+        )
+      ) : (
+        <div className="mt-2 space-y-2 text-[0.8125rem]">
+          {quando && (
+            <p className="text-slate-600">
+              {status === "ganho" ? "Ganho em" : "Perdido em"} <b className="font-semibold text-marinho-800">{quando}</b>
+            </p>
+          )}
+          {status === "perdido" && (motivo || card.motivo_perda || card.concorrente) && (
+            <div className="rounded-md bg-red-50 px-3 py-2 text-red-700">
+              <p className="font-semibold">{motivo?.nome ?? "Motivo da perda"}</p>
+              {card.motivo_perda && <p className="mt-0.5 whitespace-pre-wrap [overflow-wrap:anywhere]">{card.motivo_perda}</p>}
+              {card.concorrente && <p className="mt-0.5">Concorrente: {card.concorrente}</p>}
+            </div>
+          )}
+          {podeMover && (
+            <Button size="sm" variant="secondary" className="w-full" disabled={ocupado} onClick={() => executar(() => restaurarStatus([card.id]))}>
+              <RotateCcw size={15} /> Restaurar status
+            </Button>
+          )}
+        </div>
+      )}
+
+      {podeExcluir && (
+        <button
+          type="button"
+          onClick={() => setExcluir(true)}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md py-1.5 text-[0.8125rem] font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+        >
+          <Trash2 size={14} /> Excluir negócio
+        </button>
+      )}
+
+      {perder && <PerderModal ids={[card.id]} onClose={() => setPerder(false)} />}
+      {excluir && (
+        <ConfirmarModal
+          titulo="Excluir negócio"
+          texto={`O negócio "${tituloCard(card)}" vai para a lixeira. Dá para restaurar depois em Configurações → Lixeira.`}
+          rotulo="Excluir negócio"
+          perigo
+          onClose={() => setExcluir(false)}
+          onConfirmar={async () => {
+            if (await excluirNegocios([card.id])) onExcluido();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -293,7 +470,7 @@ function Bloco({ titulo, acao, children }: { titulo: string; acao?: React.ReactN
 }
 
 function SecaoPerfil({ lead, card, onVincularLead }: { lead: Lead | null; card: Card | null; onVincularLead: (id: string) => void }) {
-  const { leads, atualizarLead } = useData();
+  const { leads, atualizarLead, opcoesLista } = useData();
   const [criando, setCriando] = useState<string | null>(null);
   const [vincular, setVincular] = useState(false);
 
@@ -329,7 +506,7 @@ function SecaoPerfil({ lead, card, onVincularLead }: { lead: Lead | null; card: 
         <div className="grid gap-x-8 gap-y-5 p-5 sm:grid-cols-2">
           <CampoEditavel label={empresa ? "Razão social" : "Nome"} valor={lead.nome} onSalvar={(v) => v && s({ nome: v })} />
           <CampoEditavel label={empresa ? "Nome fantasia" : "Nome de exibição"} valor={lead.nome_exibicao} onSalvar={(v) => s({ nome_exibicao: v })} />
-          <CampoEditavel label="Origem" valor={lead.origem} opcoes={ORIGENS} onSalvar={(v) => s({ origem: v })} />
+          <CampoEditavel label="Origem" valor={lead.origem} opcoes={opcoesLista("origem")} onSalvar={(v) => s({ origem: v })} />
           {empresa ? (
             <CampoEditavel label="Site" valor={lead.site} tipo="url" link={lead.site ? (lead.site.startsWith("http") ? lead.site : `https://${lead.site}`) : null} onSalvar={(v) => s({ site: v })} />
           ) : (
@@ -343,7 +520,7 @@ function SecaoPerfil({ lead, card, onVincularLead }: { lead: Lead | null; card: 
             onSalvar={(v) => s({ data_referencia: v || null })}
           />
           <CampoEditavel label="Documento" valor={lead.documento} onSalvar={(v) => s({ documento: v })} />
-          {empresa && <CampoEditavel label="Segmento" valor={lead.segmento} opcoes={SEGMENTOS} onSalvar={(v) => s({ segmento: v })} />}
+          {empresa && <CampoEditavel label="Segmento" valor={lead.segmento} opcoes={opcoesLista("segmento")} onSalvar={(v) => s({ segmento: v })} />}
         </div>
       </Bloco>
 
@@ -497,12 +674,6 @@ function SecaoNegocio({ card }: { card: Card }) {
             <p className="mb-1.5 text-[0.8125rem] text-slate-500">Tags do negócio</p>
             <CampoTags tags={card.tags ?? []} onChange={(t) => atualizarOportunidade(card.id, { tags: t })} />
           </div>
-          {card.motivo_perda && (
-            <div className="rounded-md bg-red-50 p-3 text-sm text-red-700 sm:col-span-3">
-              <b>Motivo da perda:</b> {card.motivo_perda}
-              {card.concorrente ? ` · Concorrente: ${card.concorrente}` : ""}
-            </div>
-          )}
           <p className="text-xs text-slate-400 sm:col-span-3">Negócio criado em {dataBR(card.criado_em)}</p>
         </div>
       </Bloco>
@@ -539,6 +710,128 @@ function SecaoNegocio({ card }: { card: Card }) {
   );
 }
 
+/* ---------------- Campos adicionais (Configurações → Campos adicionais) ---------------- */
+
+const SIM_NAO = [
+  { valor: "sim", rotulo: "Sim" },
+  { valor: "nao", rotulo: "Não" },
+];
+
+/** valor gravado → texto do CampoEditavel */
+const textoCampo = (v: ValoresCampos[string] | undefined) =>
+  v == null ? "" : typeof v === "boolean" ? (v ? "sim" : "nao") : String(v);
+
+/** texto do CampoEditavel → valor gravado conforme o tipo do campo */
+function valorCampo(c: CampoAdicional, v: string): string | number | boolean | null {
+  if (!v) return null;
+  if (c.tipo === "numero") {
+    const n = Number(v.replace(",", "."));
+    return isNaN(n) ? null : n;
+  }
+  if (c.tipo === "sim_nao") return v === "sim";
+  return v;
+}
+
+function CampoAdicionalEditavel({
+  campo,
+  valores,
+  podeEditar,
+  onSalvar,
+}: {
+  campo: CampoAdicional;
+  valores: ValoresCampos | null | undefined;
+  podeEditar: boolean;
+  onSalvar: (campos: ValoresCampos) => void;
+}) {
+  return (
+    <CampoEditavel
+      label={campo.nome}
+      valor={textoCampo(valores?.[campo.id])}
+      tipo={campo.tipo === "numero" ? "number" : campo.tipo === "data" ? "date" : "text"}
+      opcoes={campo.tipo === "opcoes" ? campo.opcoes ?? [] : campo.tipo === "sim_nao" ? SIM_NAO : undefined}
+      podeEditar={podeEditar}
+      onSalvar={(v) => onSalvar({ ...(valores ?? {}), [campo.id]: valorCampo(campo, v) })}
+    />
+  );
+}
+
+function SecaoCampos({ lead, card }: { lead: Lead | null; card: Card | null }) {
+  const { camposAdicionais, atualizarLead, atualizarOportunidade } = useData();
+  const { isAdmin, pode } = useAuth();
+  const ativos = camposAdicionais.filter((c) => c.ativo).sort((a, b) => a.ordem - b.ordem);
+  const doLead = ativos.filter((c) => c.entidade === "lead");
+  const doNegocio = ativos.filter((c) => c.entidade === "negocio");
+  const configurar = isAdmin ? (
+    <Link to="/configuracoes/campos-adicionais" className="inline-flex items-center gap-1.5 text-sm font-medium text-aco-600 hover:underline">
+      <Settings2 size={14} /> Configurar campos
+    </Link>
+  ) : null;
+
+  if (!ativos.length)
+    return (
+      <Bloco titulo="Campos adicionais">
+        <div className="flex flex-col items-center px-5 py-10 text-center">
+          <div className="grid h-11 w-11 place-items-center rounded-full bg-aco-50 text-aco-500">
+            <LayoutGrid size={20} />
+          </div>
+          <p className="mt-3 font-semibold text-marinho-800">Nenhum campo adicional</p>
+          <p className="mt-1 max-w-sm text-sm text-slate-500">
+            Campos extras da sua operação (ex.: engenheiro responsável, traço do concreto, tem bomba própria?) aparecem aqui para preencher em
+            cada lead e negócio.
+          </p>
+          {configurar ? (
+            <div className="mt-4">{configurar}</div>
+          ) : (
+            <p className="mt-3 text-xs text-slate-400">Peça ao administrador para criar os campos em Configurações.</p>
+          )}
+        </div>
+      </Bloco>
+    );
+
+  return (
+    <>
+      {doLead.length > 0 && (
+        <Bloco titulo="Campos do lead" acao={configurar}>
+          {lead ? (
+            <div className="grid gap-x-8 gap-y-5 p-5 sm:grid-cols-2">
+              {doLead.map((c) => (
+                <CampoAdicionalEditavel
+                  key={c.id}
+                  campo={c}
+                  valores={lead.campos}
+                  podeEditar
+                  onSalvar={(campos) => atualizarLead(lead.id, { campos })}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="p-5 text-sm text-slate-400">Vincule um lead a este negócio (em Perfil) para preencher estes campos.</p>
+          )}
+        </Bloco>
+      )}
+      {doNegocio.length > 0 && (
+        <Bloco titulo="Campos do negócio" acao={!doLead.length && configurar}>
+          {card ? (
+            <div className="grid gap-x-8 gap-y-5 p-5 sm:grid-cols-2">
+              {doNegocio.map((c) => (
+                <CampoAdicionalEditavel
+                  key={c.id}
+                  campo={c}
+                  valores={card.campos}
+                  podeEditar={pode("mover_funil")}
+                  onSalvar={(campos) => atualizarOportunidade(card.id, { campos })}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="p-5 text-sm text-slate-400">Abra um negócio deste lead (menu Negócios) para preencher estes campos.</p>
+          )}
+        </Bloco>
+      )}
+    </>
+  );
+}
+
 function SecaoNegocios({ lead, negocios, onAbrir }: { lead: Lead | null; negocios: Card[]; onAbrir: (id: string) => void }) {
   const { etapas, pipelines } = useData();
   const [novo, setNovo] = useState(false);
@@ -555,10 +848,13 @@ function SecaoNegocios({ lead, negocios, onAbrir }: { lead: Lead | null; negocio
               <button key={n.id} onClick={() => onAbrir(n.id)} className="flex w-full items-center gap-3 px-5 py-3.5 text-left hover:bg-slate-50">
                 <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: et?.cor ?? "#94a3b8" }} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-marinho-800">{n.obra?.nome_obra ?? "Sem obra"}</p>
+                  <p className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-medium text-marinho-800">{n.obra?.nome_obra ?? "Sem obra"}</span>
+                    <SeloStatus status={n.status ?? "aberto"} mostrarAberto />
+                  </p>
                   <p className="truncate text-xs text-slate-500">{[pi?.nome, et?.nome, n.vendedor?.nome].filter(Boolean).join(" · ")}</p>
                 </div>
-                <span className="text-sm font-semibold text-marinho-800">{brl(n.valor_estimado || 0)}</span>
+                <span className="flex-shrink-0 text-sm font-semibold text-marinho-800">{brl(n.valor_estimado || 0)}</span>
                 <ChevronRight size={16} className="text-slate-300" />
               </button>
             );

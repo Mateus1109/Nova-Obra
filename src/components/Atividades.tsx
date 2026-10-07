@@ -4,7 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/data";
 import { Button, Field, Input, Modal, Select, Textarea } from "./ui";
-import { TIPO_ATIVIDADE, type Atividade, type TipoAtividade } from "@/lib/types";
+import { TIPO_ATIVIDADE, type Atividade, type TipoAtividade, type TipoAtividadeConfig } from "@/lib/types";
 import { cx } from "@/lib/utils";
 
 export const ICONE_ATIVIDADE: Record<TipoAtividade, typeof Phone> = {
@@ -33,6 +33,20 @@ export function quandoAtividade(iso: string | null) {
 export const atrasada = (a: Pick<Atividade, "data_hora" | "concluida">) =>
   !a.concluida && !!a.data_hora && new Date(a.data_hora).getTime() < Date.now();
 
+/** Tipo de atividade oferecido na criação: o configurado (Configurações → Tipos de atividades) ou o padrão */
+interface OpcaoTipo {
+  id: string | null;
+  icone: TipoAtividade;
+  nome: string;
+}
+
+/** Tipos configurados e ativos, na ordem; sem configuração usa a lista padrão */
+export function opcoesTipoAtividade(tipos: TipoAtividadeConfig[]): OpcaoTipo[] {
+  const ativos = tipos.filter((t) => t.ativo).sort((a, b) => a.ordem - b.ordem);
+  if (ativos.length) return ativos.map((t) => ({ id: t.id, icone: ICONE_ATIVIDADE[t.icone] ? t.icone : "tarefa", nome: t.nome }));
+  return (Object.keys(TIPO_ATIVIDADE) as TipoAtividade[]).map((t) => ({ id: null, icone: t, nome: TIPO_ATIVIDADE[t] }));
+}
+
 function paraInputLocal(d: Date) {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
@@ -49,12 +63,18 @@ export function NovaAtividadeModal({
   onClose: () => void;
   onCriada?: () => void;
 }) {
-  const { criarAtividade, vendedores } = useData();
+  const { criarAtividade, vendedores, tiposAtividade } = useData();
   const { profile, isAdmin } = useAuth();
   const amanha = new Date();
   amanha.setDate(amanha.getDate() + 1);
   amanha.setHours(9, 0, 0, 0);
-  const [tipo, setTipo] = useState<TipoAtividade>("ligacao");
+  const opcoes = opcoesTipoAtividade(tiposAtividade);
+  // começa em "Ligação" quando existir; senão no primeiro tipo
+  const [escolha, setEscolha] = useState(() => {
+    const o = opcoes.find((x) => x.icone === "ligacao") ?? opcoes[0];
+    return o ? o.id ?? o.icone : "";
+  });
+  const tipo = opcoes.find((o) => (o.id ?? o.icone) === escolha) ?? opcoes[0];
   const [titulo, setTitulo] = useState("");
   const [quando, setQuando] = useState(paraInputLocal(amanha));
   const [descricao, setDescricao] = useState("");
@@ -66,8 +86,9 @@ export function NovaAtividadeModal({
     const ok = await criarAtividade({
       oportunidade_id: oportunidadeId ?? null,
       lead_id: leadId ?? null,
-      tipo,
-      titulo: titulo.trim() || TIPO_ATIVIDADE[tipo],
+      tipo: tipo?.icone ?? "tarefa",
+      tipo_id: tipo?.id ?? null,
+      titulo: titulo.trim() || tipo?.nome || "Tarefa",
       descricao: descricao.trim(),
       data_hora: quando ? new Date(quando).toISOString() : null,
       responsavel_id: responsavel || null,
@@ -82,21 +103,22 @@ export function NovaAtividadeModal({
   return (
     <Modal open onClose={onClose} title="Nova atividade">
       <div className="space-y-4">
-        <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
-          {(Object.keys(TIPO_ATIVIDADE) as TipoAtividade[]).map((t) => {
-            const Icone = ICONE_ATIVIDADE[t];
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))] gap-1.5">
+          {opcoes.map((o) => {
+            const chave = o.id ?? o.icone;
+            const Icone = ICONE_ATIVIDADE[o.icone] ?? ListTodo;
             return (
               <button
-                key={t}
+                key={chave}
                 type="button"
-                onClick={() => setTipo(t)}
+                onClick={() => setEscolha(chave)}
                 className={cx(
-                  "flex flex-col items-center gap-1 rounded-md border px-1 py-2 text-[0.6875rem] font-medium transition",
-                  tipo === t ? "border-aco-500 bg-aco-50 text-aco-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                  "flex min-w-0 flex-col items-center gap-1 rounded-md border px-1 py-2 text-center text-[0.6875rem] font-medium leading-tight transition",
+                  escolha === chave ? "border-aco-500 bg-aco-50 text-aco-700" : "border-slate-200 text-slate-500 hover:bg-slate-50"
                 )}
               >
                 <Icone size={16} />
-                {TIPO_ATIVIDADE[t]}
+                <span className="w-full [overflow-wrap:anywhere]">{o.nome}</span>
               </button>
             );
           })}
@@ -105,7 +127,7 @@ export function NovaAtividadeModal({
           <Input
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
-            placeholder={`Ex.: ${TIPO_ATIVIDADE[tipo]} com o engenheiro da obra`}
+            placeholder={`Ex.: ${tipo?.nome ?? "Ligação"} com o engenheiro da obra`}
           />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -139,7 +161,7 @@ export function NovaAtividadeModal({
 
 /** Lista completa (pendentes + concluídas) de um negócio ou de um lead. */
 export function ListaAtividades({ oportunidadeIds, leadId }: { oportunidadeIds: string[]; leadId: string | null }) {
-  const { atualizarAtividade } = useData();
+  const { atualizarAtividade, tiposAtividade } = useData();
   const { profile, isAdmin } = useAuth();
   const [lista, setLista] = useState<Atividade[] | null>(null);
   const [nova, setNova] = useState(false);
@@ -192,7 +214,10 @@ export function ListaAtividades({ oportunidadeIds, leadId }: { oportunidadeIds: 
       )}
       <div className="space-y-2">
         {lista?.map((a) => {
-          const Icone = ICONE_ATIVIDADE[a.tipo];
+          // tipo configurado (nome e ícone de Configurações), quando houver
+          const cfg = a.tipo_id ? tiposAtividade.find((t) => t.id === a.tipo_id) : undefined;
+          const Icone = ICONE_ATIVIDADE[cfg?.icone ?? a.tipo] ?? ListTodo;
+          const nomeTipo = cfg?.nome ?? TIPO_ATIVIDADE[a.tipo];
           return (
             <div
               key={a.id}
@@ -208,7 +233,8 @@ export function ListaAtividades({ oportunidadeIds, leadId }: { oportunidadeIds: 
                 <p className={cx("flex items-center gap-1.5 font-medium", a.concluida ? "text-slate-400 line-through" : "text-marinho-800")}>
                   <Icone size={14} className="flex-shrink-0" /> {a.titulo}
                 </p>
-                <p className={cx("mt-0.5 flex items-center gap-1 text-xs", atrasada(a) ? "font-semibold text-red-600" : "text-slate-500")}>
+                <p className={cx("mt-0.5 flex flex-wrap items-center gap-x-1 text-xs", atrasada(a) ? "font-semibold text-red-600" : "text-slate-500")}>
+                  {nomeTipo && nomeTipo !== a.titulo && <span className="text-slate-500">{nomeTipo} ·</span>}
                   <CalendarClock size={12} /> {quandoAtividade(a.data_hora)}
                   {atrasada(a) && " · atrasada"}
                 </p>

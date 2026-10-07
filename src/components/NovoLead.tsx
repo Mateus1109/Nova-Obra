@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Building2, User, X } from "lucide-react";
 import { useData } from "@/lib/data";
 import { Button, Field, Input, Select, Textarea } from "./ui";
-import { ORIGENS, SEGMENTOS, type Lead, type TipoLead } from "@/lib/types";
+import type { Lead, TipoLead } from "@/lib/types";
 import { cx } from "@/lib/utils";
 
 /** Campo de tags: digite e tecle Enter (ou vírgula) para adicionar. */
@@ -224,7 +224,7 @@ export function NovoLeadModal({
   onClose: () => void;
   onCriado?: (lead: Lead, abrir: boolean) => void;
 }) {
-  const { leads, criarLead, atualizarLead, avisar } = useData();
+  const { leads, criarLead, atualizarLead, avisar, opcoesLista } = useData();
   const [tipo, setTipo] = useState<TipoLead>(tipoInicial);
   const [mais, setMais] = useState(false);
   const [f, setF] = useState({
@@ -405,7 +405,7 @@ export function NovoLeadModal({
             <Field label="Segmento">
               <Select value={f.segmento} onChange={(e) => set("segmento", e.target.value)}>
                 <option value="">Selecione o segmento</option>
-                {SEGMENTOS.map((s) => (
+                {opcoesLista("segmento").map((s) => (
                   <option key={s} value={s}>{s}</option>
                 ))}
               </Select>
@@ -441,7 +441,7 @@ export function NovoLeadModal({
                   <Field label="Origem">
                     <Select value={f.origem} onChange={(e) => set("origem", e.target.value)}>
                       <option value="">Selecione a origem</option>
-                      {ORIGENS.map((o) => (
+                      {opcoesLista("origem").map((o) => (
                         <option key={o} value={o}>{o}</option>
                       ))}
                     </Select>

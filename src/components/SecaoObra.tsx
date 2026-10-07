@@ -1,21 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Navigation,
-  Phone,
-  MessageCircle,
-  ClipboardList,
-  Pencil,
-  ImageIcon,
-  CalendarClock,
-  Truck,
-  Layers,
-} from "lucide-react";
+import { Navigation, Phone, MessageCircle, ClipboardList, ImageIcon, CalendarClock, Truck, Layers, Boxes } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useData, type Card as TCard } from "@/lib/data";
 import { useUrls } from "@/lib/fotos";
-import { Badge, Button, Field, Input, Select, Textarea } from "./ui";
+import { Badge, Button, CampoEditavel } from "./ui";
 import {
   FASE_LABEL,
   FASE_OBRA,
@@ -29,16 +19,31 @@ import {
   type RelatorioVisita,
   type StatusObra,
 } from "@/lib/types";
-import { cx, dataBR, linkWhatsApp, mapsLink } from "@/lib/utils";
+import { dataBR, linkWhatsApp, mapsLink } from "@/lib/utils";
 
-/** Dados da obra do negócio: destaques, ações rápidas, edição e visitas registradas. */
-export function SecaoObra({ card, obra: o }: { card: TCard; obra: Obra }) {
+const OPCOES_FASE = FASE_OBRA.map((f) => ({ valor: f.key, rotulo: f.label }));
+const OPCOES_SITUACAO = (Object.keys(STATUS_OBRA_LABEL) as StatusObra[]).map((k) => ({ valor: k, rotulo: STATUS_OBRA_LABEL[k] }));
+const OPCOES_PRODUTO = (Object.keys(PRODUTO_LABEL) as ProdutoAlvo[]).map((k) => ({ valor: k, rotulo: PRODUTO_LABEL[k] }));
+
+/** texto do campo → número (vazio ou inválido = null) */
+const numero = (v: string) => {
+  if (!v) return null;
+  const n = Number(v.replace(",", "."));
+  return isNaN(n) ? null : n;
+};
+
+/**
+ * Dados da obra do negócio: destaques, ações rápidas e visitas registradas.
+ * Cada informação é editada clicando direto em cima dela (quem pode mover o funil).
+ */
+export function SecaoObra({ obra: o }: { card: TCard; obra: Obra }) {
   const { pode } = useAuth();
-  const podeMover = pode("mover_funil");
-  const { atualizarObra, atualizarOportunidade } = useData();
-  const [editando, setEditando] = useState(false);
+  const podeEditar = pode("mover_funil");
+  const { atualizarObra } = useData();
   const historico = useVisitasDaObra(o.id);
   const wa = linkWhatsApp(o.contato_telefone);
+  const salvar = (patch: Partial<Obra>) => atualizarObra(o.id, patch);
+  const campo = { podeEditar };
 
   return (
     <div>
@@ -66,59 +71,90 @@ export function SecaoObra({ card, obra: o }: { card: TCard; obra: Obra }) {
         </Link>
       </div>
 
-      <div className="mt-5 flex items-center justify-between">
-        <h4 className="font-semibold text-marinho-800">{o.nome_obra}</h4>
-        {!editando && podeMover && (
-          <Button size="sm" variant="ghost" onClick={() => setEditando(true)}>
-            <Pencil size={14} /> Editar
-          </Button>
-        )}
+      {/* Destaques */}
+      <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <CampoEditavel
+          {...campo}
+          destaque
+          icone={<Layers size={13} />}
+          label="Fase"
+          valor={o.fase_obra}
+          opcoes={OPCOES_FASE}
+          onSalvar={(v) => salvar({ fase_obra: (v || null) as FaseObra | null })}
+        />
+        <CampoEditavel
+          {...campo}
+          destaque
+          icone={<CalendarClock size={13} />}
+          label="Concretagem prevista"
+          valor={o.previsao_concretagem}
+          tipo="date"
+          onSalvar={(v) => salvar({ previsao_concretagem: v || null })}
+        />
+        <CampoEditavel
+          {...campo}
+          destaque
+          icone={<Boxes size={13} />}
+          label="Volume estimado"
+          valor={o.volume_estimado_m3 || ""}
+          tipo="number"
+          sufixo="m³"
+          onSalvar={(v) => salvar({ volume_estimado_m3: numero(v) ?? 0 })}
+        />
+        <CampoEditavel
+          {...campo}
+          destaque
+          icone={<Truck size={13} />}
+          label="Fornecedor atual"
+          valor={o.fornecedor_atual}
+          onSalvar={(v) => salvar({ fornecedor_atual: v })}
+        />
       </div>
 
-      {editando ? (
-        <EditarFicha
-          card={card}
-          obra={o}
-          onCancelar={() => setEditando(false)}
-          onSalvar={async (obraPatch, opPatch) => {
-            const ok = await atualizarObra(o.id, obraPatch);
-            await atualizarOportunidade(card.id, opPatch);
-            if (ok) setEditando(false);
-          }}
+      {/* Ficha da obra */}
+      <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+        <div className="col-span-2">
+          <CampoEditavel {...campo} label="Nome da obra" valor={o.nome_obra} onSalvar={(v) => v && salvar({ nome_obra: v })} />
+        </div>
+        <CampoEditavel {...campo} label="Construtora" valor={o.construtora} onSalvar={(v) => salvar({ construtora: v })} />
+        <CampoEditavel
+          {...campo}
+          label="Situação"
+          valor={o.status_obra}
+          opcoes={OPCOES_SITUACAO}
+          obrigatorio
+          onSalvar={(v) => v && salvar({ status_obra: v as StatusObra })}
         />
-      ) : (
-        <>
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            <Destaque icon={<Layers size={15} />} label="Fase" valor={o.fase_obra ? FASE_LABEL[o.fase_obra] : "—"} />
-            <Destaque
-              icon={<CalendarClock size={15} />}
-              label="Concretagem prevista"
-              valor={o.previsao_concretagem ? dataBR(o.previsao_concretagem) : "—"}
-            />
-            <Destaque label="Volume estimado" valor={o.volume_estimado_m3 ? `${o.volume_estimado_m3} m³` : "—"} />
-            <Destaque icon={<Truck size={15} />} label="Fornecedor atual" valor={o.fornecedor_atual || "—"} />
-          </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-3">
-            <Info label="Construtora" valor={o.construtora} />
-            <Info label="Situação" valor={STATUS_OBRA_LABEL[o.status_obra]} />
-            <Info label="Produto-alvo" valor={PRODUTO_LABEL[o.produto_alvo]} />
-            <Info label="Pavimentos" valor={o.pavimentos ? String(o.pavimentos) : ""} />
-            <Info label="Área construída" valor={o.area_m2 ? `${o.area_m2} m²` : ""} />
-            <Info label="Bairro" valor={o.bairro} />
-            <Info label="Endereço" valor={o.endereco} />
-            <Info
-              label="Contato na obra"
-              valor={[o.contato_nome, o.contato_cargo && `(${o.contato_cargo})`].filter(Boolean).join(" ")}
-            />
-            <Info label="Telefone" valor={o.contato_telefone} />
-          </div>
-          {o.observacoes && (
-            <div className="mt-4 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
-              {o.observacoes}
-            </div>
-          )}
-        </>
-      )}
+        <CampoEditavel
+          {...campo}
+          label="Produto-alvo"
+          valor={o.produto_alvo}
+          opcoes={OPCOES_PRODUTO}
+          obrigatorio
+          onSalvar={(v) => v && salvar({ produto_alvo: v as ProdutoAlvo })}
+        />
+        <CampoEditavel {...campo} label="Pavimentos" valor={o.pavimentos} tipo="number" onSalvar={(v) => salvar({ pavimentos: numero(v) })} />
+        <CampoEditavel
+          {...campo}
+          label="Área construída"
+          valor={o.area_m2}
+          tipo="number"
+          sufixo="m²"
+          onSalvar={(v) => salvar({ area_m2: numero(v) })}
+        />
+        <CampoEditavel {...campo} label="Bairro" valor={o.bairro} onSalvar={(v) => salvar({ bairro: v })} />
+        <div className="col-span-2 sm:col-span-1">
+          <CampoEditavel {...campo} label="Endereço" valor={o.endereco} onSalvar={(v) => salvar({ endereco: v })} />
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <CampoEditavel {...campo} label="Contato na obra" valor={o.contato_nome} onSalvar={(v) => salvar({ contato_nome: v })} />
+        </div>
+        <CampoEditavel {...campo} label="Cargo" valor={o.contato_cargo} onSalvar={(v) => salvar({ contato_cargo: v })} />
+        <CampoEditavel {...campo} label="Telefone" valor={o.contato_telefone} tipo="tel" onSalvar={(v) => salvar({ contato_telefone: v })} />
+        <div className="col-span-2 sm:col-span-3">
+          <CampoEditavel {...campo} label="Observações" valor={o.observacoes} tipo="textarea" onSalvar={(v) => salvar({ observacoes: v })} />
+        </div>
+      </div>
 
       <h4 className="mt-6 font-semibold text-marinho-800">
         Visitas nesta obra {historico && historico.length > 0 && `(${historico.length})`}
@@ -198,171 +234,6 @@ function ItemHistorico({ r }: { r: RelatorioVisita }) {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function EditarFicha({
-  card,
-  obra: o,
-  onCancelar,
-  onSalvar,
-}: {
-  card: TCard;
-  obra: Obra;
-  onCancelar: () => void;
-  onSalvar: (obra: Record<string, unknown>, op: Record<string, unknown>) => Promise<void>;
-}) {
-  const [f, setF] = useState({
-    construtora: o.construtora ?? "",
-    status_obra: o.status_obra,
-    fase_obra: (o.fase_obra ?? "") as FaseObra | "",
-    previsao_concretagem: o.previsao_concretagem ?? "",
-    volume_estimado_m3: o.volume_estimado_m3 ? String(o.volume_estimado_m3) : "",
-    produto_alvo: o.produto_alvo,
-    pavimentos: o.pavimentos ? String(o.pavimentos) : "",
-    area_m2: o.area_m2 ? String(o.area_m2) : "",
-    fornecedor_atual: o.fornecedor_atual ?? "",
-    bairro: o.bairro ?? "",
-    endereco: o.endereco ?? "",
-    contato_nome: o.contato_nome ?? "",
-    contato_cargo: o.contato_cargo ?? "",
-    contato_telefone: o.contato_telefone ?? "",
-    observacoes: o.observacoes ?? "",
-    valor_estimado: card.valor_estimado ? String(card.valor_estimado) : "",
-    proxima_etapa_data: card.proxima_etapa_data ?? "",
-    previsao_fechamento: card.previsao_fechamento ?? "",
-  });
-  const [salvando, setSalvando] = useState(false);
-  const set = <K extends keyof typeof f>(k: K, v: (typeof f)[K]) => setF((s) => ({ ...s, [k]: v }));
-  const num = (v: string) => (v === "" ? null : Number(v));
-
-  async function salvar() {
-    setSalvando(true);
-    await onSalvar(
-      {
-        construtora: f.construtora.trim(),
-        status_obra: f.status_obra,
-        fase_obra: f.fase_obra || null,
-        previsao_concretagem: f.previsao_concretagem || null,
-        volume_estimado_m3: num(f.volume_estimado_m3) ?? 0,
-        produto_alvo: f.produto_alvo,
-        pavimentos: num(f.pavimentos),
-        area_m2: num(f.area_m2),
-        fornecedor_atual: f.fornecedor_atual.trim(),
-        bairro: f.bairro.trim(),
-        endereco: f.endereco.trim(),
-        contato_nome: f.contato_nome.trim(),
-        contato_cargo: f.contato_cargo.trim(),
-        contato_telefone: f.contato_telefone.trim(),
-        observacoes: f.observacoes,
-      },
-      {
-        valor_estimado: num(f.valor_estimado) ?? 0,
-        proxima_etapa_data: f.proxima_etapa_data || null,
-        previsao_fechamento: f.previsao_fechamento || null,
-      }
-    );
-    setSalvando(false);
-  }
-
-  return (
-    <div className="mt-3 space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-      <div>
-        <p className="mb-1.5 text-sm font-semibold text-marinho-800">Fase da obra</p>
-        <div className="flex flex-wrap gap-1.5">
-          {FASE_OBRA.map((fa) => (
-            <button
-              key={fa.key}
-              type="button"
-              onClick={() => set("fase_obra", f.fase_obra === fa.key ? "" : fa.key)}
-              className={cx(
-                "rounded-full border px-3 py-1.5 text-xs font-bold transition",
-                f.fase_obra === fa.key
-                  ? "border-marinho-700 bg-marinho-700 text-white"
-                  : "border-slate-200 bg-white text-slate-600"
-              )}
-            >
-              {fa.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Concretagem prevista">
-          <Input type="date" value={f.previsao_concretagem} onChange={(e) => set("previsao_concretagem", e.target.value)} />
-        </Field>
-        <Field label="Volume estimado (m³)">
-          <Input type="number" inputMode="decimal" value={f.volume_estimado_m3} onChange={(e) => set("volume_estimado_m3", e.target.value)} />
-        </Field>
-        <Field label="Fornecedor atual">
-          <Input value={f.fornecedor_atual} onChange={(e) => set("fornecedor_atual", e.target.value)} placeholder="Concorrente que atende hoje" />
-        </Field>
-        <Field label="Construtora">
-          <Input value={f.construtora} onChange={(e) => set("construtora", e.target.value)} />
-        </Field>
-        <Field label="Situação">
-          <Select value={f.status_obra} onChange={(e) => set("status_obra", e.target.value as StatusObra)}>
-            <option value="lancamento">Lançamento</option>
-            <option value="em_andamento">Em andamento</option>
-          </Select>
-        </Field>
-        <Field label="Produto-alvo">
-          <Select value={f.produto_alvo} onChange={(e) => set("produto_alvo", e.target.value as ProdutoAlvo)}>
-            {(Object.keys(PRODUTO_LABEL) as ProdutoAlvo[]).map((k) => (<option key={k} value={k}>{PRODUTO_LABEL[k]}</option>))}
-          </Select>
-        </Field>
-        <Field label="Pavimentos">
-          <Input type="number" inputMode="numeric" value={f.pavimentos} onChange={(e) => set("pavimentos", e.target.value)} />
-        </Field>
-        <Field label="Área construída (m²)">
-          <Input type="number" inputMode="decimal" value={f.area_m2} onChange={(e) => set("area_m2", e.target.value)} />
-        </Field>
-        <Field label="Valor estimado (R$)">
-          <Input type="number" inputMode="decimal" value={f.valor_estimado} onChange={(e) => set("valor_estimado", e.target.value)} />
-        </Field>
-        <Field label="Bairro">
-          <Input value={f.bairro} onChange={(e) => set("bairro", e.target.value)} />
-        </Field>
-        <Field label="Endereço">
-          <Input value={f.endereco} onChange={(e) => set("endereco", e.target.value)} />
-        </Field>
-        <Field label="Próximo contato">
-          <Input type="date" value={f.proxima_etapa_data} onChange={(e) => set("proxima_etapa_data", e.target.value)} />
-        </Field>
-        <Field label="Contato">
-          <Input value={f.contato_nome} onChange={(e) => set("contato_nome", e.target.value)} />
-        </Field>
-        <Field label="Cargo">
-          <Input value={f.contato_cargo} onChange={(e) => set("contato_cargo", e.target.value)} />
-        </Field>
-        <Field label="Telefone / WhatsApp">
-          <Input value={f.contato_telefone} onChange={(e) => set("contato_telefone", e.target.value)} />
-        </Field>
-        <Field label="Previsão de fechamento">
-          <Input type="date" value={f.previsao_fechamento} onChange={(e) => set("previsao_fechamento", e.target.value)} />
-        </Field>
-      </div>
-      <Field label="Observações">
-        <Textarea value={f.observacoes} onChange={(e) => set("observacoes", e.target.value)} />
-      </Field>
-      <div className="flex gap-2">
-        <Button variant="ghost" className="flex-1" onClick={onCancelar}>Cancelar</Button>
-        <Button className="flex-1" onClick={salvar} disabled={salvando}>
-          {salvando ? "Salvando..." : "Salvar dados"}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Destaque({ icon, label, valor }: { icon?: React.ReactNode; label: string; valor: string }) {
-  return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-      <p className="flex items-center gap-1 text-[0.6875rem] font-bold uppercase tracking-wide text-slate-500">
-        {icon} {label}
-      </p>
-      <p className="mt-0.5 truncate font-bold text-marinho-800">{valor}</p>
     </div>
   );
 }

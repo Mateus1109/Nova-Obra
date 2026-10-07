@@ -162,9 +162,16 @@ export function Tag({ children, onRemover, cor }: { children: ReactNode; onRemov
   );
 }
 
+/** Opção do CampoEditavel: texto simples ou valor gravado + rótulo exibido */
+export type OpcaoCampo = string | { valor: string; rotulo: string };
+
+type ElCampo = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
 /**
- * Campo exibido como texto e editado no lugar (clique no lápis), como nos dados cadastrais do CRM.
- * `onSalvar` recebe o texto já sem espaços nas pontas.
+ * Campo exibido como texto e editado no lugar, como nos dados cadastrais do CRM:
+ * clique no valor (ou no lápis) para editar; Enter ou sair do campo salva, Esc cancela.
+ * Em texto longo (textarea) o Enter quebra linha e Ctrl+Enter salva.
+ * `onSalvar` recebe o texto já sem espaços nas pontas (números e datas também chegam como texto).
  */
 export function CampoEditavel({
   label,
@@ -172,84 +179,182 @@ export function CampoEditavel({
   onSalvar,
   tipo = "text",
   opcoes,
+  obrigatorio,
   link,
+  sufixo,
+  icone,
+  destaque,
   podeEditar = true,
 }: {
   label: string;
-  valor: string | null | undefined;
+  valor: string | number | null | undefined;
   onSalvar: (v: string) => void;
-  tipo?: "text" | "date" | "email" | "tel" | "url";
-  opcoes?: string[];
+  tipo?: "text" | "date" | "email" | "tel" | "url" | "number" | "textarea";
+  /** vira uma lista; aceita ["A", "B"] ou [{ valor: "a", rotulo: "A" }] */
+  opcoes?: OpcaoCampo[];
+  /** lista sem a opção "Não informado" */
+  obrigatorio?: boolean;
   link?: string | null;
+  /** unidade exibida depois do valor (ex.: "m³") */
+  sufixo?: string;
+  icone?: ReactNode;
+  /** caixinha cinza com rótulo em caixa alta (destaques da obra) */
+  destaque?: boolean;
   podeEditar?: boolean;
 }) {
   const [editando, setEditando] = useState(false);
-  const [v, setV] = useState(valor ?? "");
-  const salvar = () => {
+  const atual = valor == null ? "" : String(valor);
+  const ops = opcoes?.map((o) => (typeof o === "string" ? { valor: o, rotulo: o } : o));
+  // valor antigo que saiu da configuração continua aparecendo na lista
+  if (ops && atual && !ops.some((o) => o.valor === atual)) ops.unshift({ valor: atual, rotulo: atual });
+
+  // cada edição termina uma vez só (Enter seguido do blur não salva duas vezes; Esc não salva)
+  const terminar = (el: ElCampo, gravar: boolean, novo = el.value) => {
+    if (el.dataset.fim) return;
+    el.dataset.fim = "1";
     setEditando(false);
-    if ((v ?? "").trim() !== (valor ?? "")) onSalvar((v ?? "").trim());
+    if (gravar && novo.trim() !== atual.trim()) onSalvar(novo.trim());
   };
-  const exibido =
-    tipo === "date" && valor ? new Date(valor + "T00:00:00").toLocaleDateString("pt-BR") : valor;
+  const teclas = (e: React.KeyboardEvent<ElCampo>) => {
+    if (e.key === "Escape") {
+      e.stopPropagation(); // não fecha o painel/modal em volta
+      terminar(e.currentTarget, false);
+    } else if (e.key === "Enter" && (tipo !== "textarea" || e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      terminar(e.currentTarget, true);
+    }
+  };
+  // já abre o calendário / a lista (no celular evita um segundo toque)
+  const abrirSeletor = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+    try {
+      (e.currentTarget as HTMLInputElement).showPicker?.();
+    } catch {
+      /* navegador sem suporte */
+    }
+  };
+
+  let exibido = "";
+  if (atual) {
+    const rotulo = ops?.find((o) => o.valor === atual)?.rotulo;
+    exibido =
+      rotulo ??
+      (tipo === "date"
+        ? new Date(atual.slice(0, 10) + "T00:00:00").toLocaleDateString("pt-BR")
+        : tipo === "number" && !isNaN(Number(atual))
+          ? Number(atual).toLocaleString("pt-BR")
+          : atual);
+    if (sufixo) exibido += ` ${sufixo}`;
+  }
+
+  const cls = cx(
+    "mt-1 w-full rounded-md border border-[#D7DBDF] bg-white py-1.5 text-base outline-none focus:border-aco-500 focus:ring-2 focus:ring-aco-100 lg:text-sm",
+    destaque ? "px-2" : "px-3"
+  );
+  const editor = ops ? (
+    <select
+      autoFocus
+      defaultValue={atual}
+      onChange={(e) => terminar(e.currentTarget, true)}
+      onBlur={() => setEditando(false)}
+      onKeyDown={teclas}
+      onFocus={abrirSeletor}
+      className={cx(cls, "appearance-none")}
+    >
+      {!obrigatorio && <option value="">Não informado</option>}
+      {ops.map((o) => (
+        <option key={o.valor} value={o.valor}>{o.rotulo}</option>
+      ))}
+    </select>
+  ) : tipo === "textarea" ? (
+    <textarea
+      autoFocus
+      defaultValue={atual}
+      rows={4}
+      onBlur={(e) => terminar(e.currentTarget, true)}
+      onKeyDown={teclas}
+      className={cx(cls, "min-h-[5rem] resize-y")}
+    />
+  ) : (
+    <input
+      autoFocus
+      type={tipo}
+      defaultValue={atual}
+      inputMode={tipo === "number" ? "decimal" : undefined}
+      step={tipo === "number" ? "any" : undefined}
+      onBlur={(e) => terminar(e.currentTarget, true)}
+      onKeyDown={teclas}
+      onFocus={tipo === "date" ? abrirSeletor : undefined}
+      className={cls}
+    />
+  );
+
+  const conteudo = exibido ? (
+    <span
+      className={cx(
+        "min-w-0 text-marinho-800 [overflow-wrap:anywhere]",
+        destaque ? "font-bold" : "font-medium",
+        tipo === "textarea" && "whitespace-pre-wrap"
+      )}
+    >
+      {exibido}
+    </span>
+  ) : destaque ? (
+    <span className="font-bold text-slate-400">—</span>
+  ) : (
+    <span className="italic text-slate-400">Não informado</span>
+  );
 
   return (
-    <div className="group min-w-0">
-      <p className="text-[0.8125rem] text-slate-500">{label}</p>
+    <div className={cx("group min-w-0", destaque && "rounded-lg border border-slate-200 bg-slate-50 p-2.5 sm:p-3")}>
+      <p
+        className={cx(
+          "flex items-center gap-1 text-slate-500",
+          destaque ? "text-[0.6875rem] font-bold uppercase tracking-wide" : "text-[0.8125rem]"
+        )}
+      >
+        {icone}
+        {label}
+      </p>
       {editando ? (
-        opcoes ? (
-          <select
-            autoFocus
-            value={v}
-            onChange={(e) => setV(e.target.value)}
-            onBlur={salvar}
-            className={cx(inputCls, "mt-1 py-1.5")}
-          >
-            <option value="">Não informado</option>
-            {opcoes.map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
-          </select>
-        ) : (
-          <input
-            autoFocus
-            type={tipo}
-            value={v}
-            onChange={(e) => setV(e.target.value)}
-            onBlur={salvar}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") salvar();
-              if (e.key === "Escape") {
-                setV(valor ?? "");
-                setEditando(false);
-              }
-            }}
-            className={cx(inputCls, "mt-1 py-1.5")}
-          />
-        )
+        editor
       ) : (
-        <div className="mt-0.5 flex min-h-[26px] items-center gap-1.5">
-          {exibido ? (
-            link ? (
-              <a href={link} target="_blank" rel="noreferrer" className="truncate font-medium text-aco-600 hover:underline">
+        <div className="mt-0.5 flex min-h-[2rem] items-center gap-1.5">
+          {link && exibido ? (
+            <>
+              <a href={link} target="_blank" rel="noreferrer" className="min-w-0 truncate font-medium text-aco-600 hover:underline">
                 {exibido}
               </a>
-            ) : (
-              <span className="truncate font-medium text-marinho-800">{exibido}</span>
-            )
-          ) : (
-            <span className="italic text-slate-400">Não informado</span>
-          )}
-          {podeEditar && (
+              {podeEditar && (
+                <button
+                  type="button"
+                  onClick={() => setEditando(true)}
+                  className="flex-shrink-0 text-slate-300 opacity-60 hover:text-aco-600 group-hover:opacity-100"
+                  aria-label={`Editar ${label}`}
+                >
+                  <Pencil size={13} />
+                </button>
+              )}
+            </>
+          ) : podeEditar ? (
             <button
-              onClick={() => {
-                setV(valor ?? "");
-                setEditando(true);
-              }}
-              className="text-slate-300 opacity-60 hover:text-aco-600 group-hover:opacity-100"
-              aria-label={`Editar ${label}`}
+              type="button"
+              onClick={() => setEditando(true)}
+              title="Clique para editar"
+              className={cx(
+                "-mx-1.5 flex min-w-0 max-w-[calc(100%+0.75rem)] gap-1.5 rounded-md px-1.5 py-0.5 text-left transition",
+                destaque ? "hover:bg-white" : "hover:bg-slate-100",
+                tipo === "textarea" ? "items-start" : "items-center"
+              )}
             >
-              <Pencil size={13} />
+              {conteudo}
+              <Pencil
+                size={13}
+                className={cx("flex-shrink-0 text-slate-300 opacity-60 group-hover:text-aco-600 group-hover:opacity-100", tipo === "textarea" && "mt-1")}
+                aria-label={`Editar ${label}`}
+              />
             </button>
+          ) : (
+            conteudo
           )}
         </div>
       )}
