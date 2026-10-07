@@ -17,7 +17,7 @@ interface AuthCtx {
   isAdmin: boolean;
   pode: (p: Permissao) => boolean;
   entrar: (email: string, senha: string) => Promise<{ error: string | null }>;
-  cadastrar: (c: Cadastro) => Promise<{ error: string | null; precisaConfirmar?: boolean }>;
+  cadastrar: (c: Cadastro) => Promise<{ error: string | null }>;
   recarregarPerfil: () => Promise<void>;
   sair: () => Promise<void>;
 }
@@ -79,8 +79,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: { data: { nome, telefone }, emailRedirectTo: window.location.origin },
     });
     if (error) return { error: traduzErro(error.message) };
-    // Sem sessão = o projeto exige confirmação por e-mail antes do primeiro acesso
-    if (!data.session) return { error: null, precisaConfirmar: true };
+    // O banco já confirma o e-mail no cadastro (quem libera o acesso é o administrador),
+    // então, se o Supabase não devolveu sessão, entramos direto com a senha recém-criada.
+    if (!data.session) {
+      const { error: e2 } = await supabase.auth.signInWithPassword({ email, password: senha });
+      if (e2) return { error: traduzErro(e2.message) };
+    }
     return { error: null };
   };
 
@@ -109,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 function traduzErro(msg: string) {
   if (/invalid login credentials/i.test(msg)) return "E-mail ou senha inválidos.";
   if (/email not confirmed/i.test(msg))
-    return "Confirme seu e-mail pelo link que enviamos antes de entrar.";
+    return "Seu acesso ainda não foi ativado. Fale com o administrador.";
   if (/already registered|already exists/i.test(msg)) return "Já existe uma conta com esse e-mail. Use “Entrar”.";
   if (/password should be at least/i.test(msg)) return "A senha precisa ter pelo menos 8 caracteres.";
   if (/signups not allowed|signup is disabled/i.test(msg))

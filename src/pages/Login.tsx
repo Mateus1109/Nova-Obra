@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { Button, Input } from "@/components/ui";
-import { Building2, CheckCircle2 } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { cx } from "@/lib/utils";
 
 type Aba = "entrar" | "cadastrar";
@@ -15,13 +15,11 @@ export default function Login() {
   const [senha, setSenha] = useState("");
   const [confirma, setConfirma] = useState("");
   const [erro, setErro] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
 
   function trocar(a: Aba) {
     setAba(a);
     setErro(null);
-    setAviso(null);
   }
 
   async function submit(e: React.FormEvent) {
@@ -39,15 +37,7 @@ export default function Login() {
     } else {
       const r = await cadastrar({ nome: nome.trim(), telefone: telefone.trim(), email: email.trim(), senha });
       if (r.error) setErro(r.error);
-      else if (r.precisaConfirmar) {
-        setAviso(
-          "Conta criada! Enviamos um link para o seu e-mail. Confirme e depois entre aqui — o administrador vai liberar seu acesso."
-        );
-        setAba("entrar");
-        setSenha("");
-        setConfirma("");
-      }
-      // com sessão, o app já abre a tela de "aguardando liberação"
+      // deu certo: o app já abre a tela de "aguardando liberação" (ou o sistema, se for administrador)
     }
     setCarregando(false);
   }
@@ -102,13 +92,6 @@ export default function Login() {
               ? "Acesse sua conta para continuar."
               : "Depois do cadastro, o administrador libera o seu acesso."}
           </p>
-
-          {aviso && (
-            <p className="mt-4 flex gap-2 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-800">
-              <CheckCircle2 size={18} className="mt-0.5 flex-shrink-0" />
-              {aviso}
-            </p>
-          )}
 
           <div className="mt-6 space-y-4">
             {aba === "cadastrar" && (
