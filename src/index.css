@@ -14,10 +14,10 @@ body,
 
 body {
   margin: 0;
-  font-family: "Figtree", ui-sans-serif, system-ui, sans-serif;
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
-  background: #f4f6fa;
-  color: #0b1d30;
+  background: #f8fafc;
+  color: #020817;
 }
 
 /* Scrollbars discretas */
@@ -26,7 +26,7 @@ body {
   width: 10px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #c7d3e0;
+  background: #d7dbdf;
   border-radius: 999px;
   border: 2px solid transparent;
   background-clip: content-box;
@@ -36,7 +36,7 @@ body {
 }
 
 .leaflet-container {
-  font-family: "Figtree", sans-serif;
+  font-family: "Inter", sans-serif;
 }
 
 /* ---------- Impressão: Rota do dia em PDF ---------- */

@@ -7,6 +7,7 @@ import Kanban from "./pages/Kanban";
 import CadastroObra from "./pages/CadastroObra";
 import Vendedores from "./pages/Vendedores";
 import Aguardando from "./pages/Aguardando";
+import Leads from "./pages/Leads";
 import Relatorios from "./pages/Relatorios";
 import Dashboard from "./pages/Dashboard";
 import { Spinner } from "./components/ui";
@@ -30,7 +31,9 @@ function Protegido() {
           element={
             <Layout>
               <Routes>
-                <Route path="/" element={<Kanban />} />
+                <Route path="/" element={<Navigate to="/pipelines" replace />} />
+                <Route path="/pipelines/:pipelineId?" element={<Kanban />} />
+                <Route path="/leads" element={<Leads />} />
                 <Route
                   path="/obras/nova"
                   element={pode("cadastrar_obras") ? <CadastroObra /> : <Navigate to="/" replace />}

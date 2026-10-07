@@ -4,7 +4,8 @@ export const brl = (v: number | null | undefined) =>
   (v ?? 0).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 
 export const dataBR = (iso: string | null | undefined) => {
@@ -75,3 +76,35 @@ export const agruparPorProximidade = (obras: Obra[]): Obra[] => {
 
 export const cx = (...c: (string | false | null | undefined)[]) =>
   c.filter(Boolean).join(" ");
+
+// Cor do avatar/banner a partir do nome (sempre a mesma para o mesmo lead), no estilo DataCrazy
+const PALETA_AVATAR = [
+  { bg: "#ffe4e6", fg: "#e11d48", banner: "#fb7185" },
+  { bg: "#dbeafe", fg: "#2563eb", banner: "#60a5fa" },
+  { bg: "#dcfce7", fg: "#16a34a", banner: "#4ade80" },
+  { bg: "#fef3c7", fg: "#d97706", banner: "#fbbf24" },
+  { bg: "#ede9fe", fg: "#7c3aed", banner: "#a78bfa" },
+  { bg: "#cffafe", fg: "#0891b2", banner: "#22d3ee" },
+  { bg: "#fce7f3", fg: "#db2777", banner: "#f472b6" },
+  { bg: "#e0e7ff", fg: "#4f46e5", banner: "#818cf8" },
+];
+export function corAvatar(nome: string) {
+  let h = 0;
+  for (const ch of nome || "?") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return PALETA_AVATAR[h % PALETA_AVATAR.length];
+}
+
+export const iniciais = (nome: string) =>
+  (nome || "?")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 1)
+    .map((p) => p[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+
+/** "(98) 98888-1234" → "5598988881234" para links de WhatsApp */
+export const linkWhatsApp = (tel?: string | null) => {
+  const d = (tel ?? "").replace(/\D/g, "");
+  if (d.length < 8) return null;
+  return `https://wa.me/${d.length <= 11 ? "55" + d : d}`;
+};

@@ -6,7 +6,6 @@ import {
   MessageCircle,
   ClipboardList,
   Pencil,
-  Flame,
   ImageIcon,
   CalendarClock,
   Truck,
@@ -16,106 +15,35 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useData, type Card as TCard } from "@/lib/data";
 import { useUrls } from "@/lib/fotos";
-import { Badge, Button, Field, Input, Modal, Select, Textarea } from "./ui";
+import { Badge, Button, Field, Input, Select, Textarea } from "./ui";
 import {
-  CLASSIFICACOES,
   FASE_LABEL,
   FASE_OBRA,
   PRODUTO_LABEL,
   RESULTADO_VISITA,
   STATUS_OBRA_LABEL,
   TIPO_RELATORIO,
-  type Classificacao,
   type FaseObra,
+  type Obra,
   type ProdutoAlvo,
   type RelatorioVisita,
   type StatusObra,
 } from "@/lib/types";
-import { brl, cx, dataBR, mapsLink } from "@/lib/utils";
+import { cx, dataBR, linkWhatsApp, mapsLink } from "@/lib/utils";
 
-export function linkWhatsApp(tel?: string | null) {
-  const d = (tel ?? "").replace(/\D/g, "");
-  if (d.length < 8) return null;
-  return `https://wa.me/${d.length <= 11 ? "55" + d : d}`;
-}
-
-export default function FichaObra({
-  card,
-  onClose,
-  onMudarEtapa,
-}: {
-  card: TCard;
-  onClose: () => void;
-  onMudarEtapa: (etapaId: string) => void;
-}) {
-  const { isAdmin, pode } = useAuth();
+/** Dados da obra do negócio: destaques, ações rápidas, edição e visitas registradas. */
+export function SecaoObra({ card, obra: o }: { card: TCard; obra: Obra }) {
+  const { pode } = useAuth();
   const podeMover = pode("mover_funil");
-  const { etapas, vendedores, atualizarObra, atualizarOportunidade, setResponsavel, setClassificacao } =
-    useData();
-  const o = card.obra;
+  const { atualizarObra, atualizarOportunidade } = useData();
   const [editando, setEditando] = useState(false);
-  const [historico, setHistorico] = useState<RelatorioVisita[] | null>(null);
-
-  useEffect(() => {
-    let vivo = true;
-    supabase
-      .from("relatorios_visita")
-      .select("*, vendedor:profiles(nome)")
-      .eq("obra_id", o.id)
-      .order("data_visita", { ascending: false })
-      .order("criado_em", { ascending: false })
-      .then(({ data }) => vivo && setHistorico((data as RelatorioVisita[]) ?? []));
-    return () => {
-      vivo = false;
-    };
-  }, [o.id]);
-
+  const historico = useVisitasDaObra(o.id);
   const wa = linkWhatsApp(o.contato_telefone);
-  const etapa = etapas.find((e) => e.id === card.etapa_id);
 
   return (
-    <Modal open onClose={onClose} title={o.nome_obra} wide>
-      {/* Etapa / temperatura / responsável */}
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Etapa no funil">
-          <Select value={card.etapa_id} onChange={(e) => onMudarEtapa(e.target.value)} disabled={!podeMover}>
-            {etapas.map((e) => (<option key={e.id} value={e.id}>{e.nome}</option>))}
-          </Select>
-        </Field>
-        <Field label="Responsável">
-          <Select
-            value={card.vendedor_id ?? ""}
-            disabled={!isAdmin}
-            onChange={(e) => setResponsavel(card.id, e.target.value || null)}
-          >
-            <option value="">Sem responsável</option>
-            {vendedores.map((v) => (<option key={v.id} value={v.id}>{v.nome}</option>))}
-          </Select>
-        </Field>
-        <div>
-          <p className="mb-1 flex items-center gap-1 text-sm font-semibold text-marinho-800">
-            <Flame size={14} /> Temperatura
-          </p>
-          <div className="flex gap-1.5">
-            {(["frio", "morno", "quente"] as Classificacao[]).map((c) => (
-              <button
-                key={c}
-                onClick={() => podeMover && setClassificacao(card.id, c)}
-                className={cx(
-                  "flex-1 rounded-xl border-2 py-2 text-xs font-bold transition",
-                  card.classificacao === c ? "border-marinho-700" : "border-transparent"
-                )}
-                style={{ background: CLASSIFICACOES[c].bg, color: CLASSIFICACOES[c].fg }}
-              >
-                {CLASSIFICACOES[c].label}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
+    <div>
       {/* Ações rápidas */}
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <a href={mapsLink(o.latitude, o.longitude, o.endereco || o.bairro)} target="_blank" rel="noreferrer">
           <Button variant="secondary" className="w-full"><Navigation size={16} /> Rota</Button>
         </a>
@@ -138,16 +66,8 @@ export default function FichaObra({
         </Link>
       </div>
 
-      {card.motivo_perda && (
-        <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">
-          <b>Motivo da perda:</b> {card.motivo_perda}
-          {card.concorrente ? ` · Concorrente: ${card.concorrente}` : ""}
-        </div>
-      )}
-
-      {/* Dados da obra */}
       <div className="mt-5 flex items-center justify-between">
-        <h4 className="font-bold text-marinho-800">Dados da obra</h4>
+        <h4 className="font-semibold text-marinho-800">{o.nome_obra}</h4>
         {!editando && podeMover && (
           <Button size="sm" variant="ghost" onClick={() => setEditando(true)}>
             <Pencil size={14} /> Editar
@@ -158,6 +78,7 @@ export default function FichaObra({
       {editando ? (
         <EditarFicha
           card={card}
+          obra={o}
           onCancelar={() => setEditando(false)}
           onSalvar={async (obraPatch, opPatch) => {
             const ok = await atualizarObra(o.id, obraPatch);
@@ -167,7 +88,6 @@ export default function FichaObra({
         />
       ) : (
         <>
-          {/* Destaques para concreto */}
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Destaque icon={<Layers size={15} />} label="Fase" valor={o.fase_obra ? FASE_LABEL[o.fase_obra] : "—"} />
             <Destaque
@@ -187,46 +107,63 @@ export default function FichaObra({
             <Info label="Bairro" valor={o.bairro} />
             <Info label="Endereço" valor={o.endereco} />
             <Info
-              label="Contato"
+              label="Contato na obra"
               valor={[o.contato_nome, o.contato_cargo && `(${o.contato_cargo})`].filter(Boolean).join(" ")}
             />
             <Info label="Telefone" valor={o.contato_telefone} />
-            <Info label="Valor estimado" valor={card.valor_estimado ? brl(card.valor_estimado) : ""} />
-            <Info label="Próximo contato" valor={card.proxima_etapa_data ? dataBR(card.proxima_etapa_data) : ""} />
-            <Info label="Previsão de fechamento" valor={card.previsao_fechamento ? dataBR(card.previsao_fechamento) : ""} />
           </div>
           {o.observacoes && (
-            <div className="mt-4 whitespace-pre-wrap rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+            <div className="mt-4 whitespace-pre-wrap rounded-lg bg-slate-50 p-3 text-sm text-slate-600">
               {o.observacoes}
             </div>
           )}
         </>
       )}
 
-      {/* Histórico */}
-      <h4 className="mt-6 font-bold text-marinho-800">
-        Histórico de visitas {historico && historico.length > 0 && `(${historico.length})`}
+      <h4 className="mt-6 font-semibold text-marinho-800">
+        Visitas nesta obra {historico && historico.length > 0 && `(${historico.length})`}
       </h4>
-      {historico === null ? (
-        <p className="mt-2 text-sm text-slate-400">Carregando...</p>
-      ) : historico.length === 0 ? (
-        <p className="mt-2 rounded-xl border-2 border-dashed border-slate-200 p-4 text-center text-sm text-slate-400">
-          Nenhuma visita registrada nesta obra ainda.
-        </p>
-      ) : (
-        <div className="mt-2 space-y-2">
-          {historico.map((r) => (
-            <ItemHistorico key={r.id} r={r} />
-          ))}
-        </div>
-      )}
+      <ListaVisitas historico={historico} />
+    </div>
+  );
+}
 
-      {etapa && (
-        <p className="mt-5 text-center text-[11px] text-slate-400">
-          Cadastrada em {dataBR(o.criado_em)} · etapa atual: {etapa.nome}
-        </p>
-      )}
-    </Modal>
+export function useVisitasDaObra(obraId: string | null | undefined) {
+  const [historico, setHistorico] = useState<RelatorioVisita[] | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    if (!obraId) {
+      setHistorico([]);
+      return;
+    }
+    supabase
+      .from("relatorios_visita")
+      .select("*, vendedor:profiles(nome)")
+      .eq("obra_id", obraId)
+      .order("data_visita", { ascending: false })
+      .order("criado_em", { ascending: false })
+      .then(({ data }) => vivo && setHistorico((data as RelatorioVisita[]) ?? []));
+    return () => {
+      vivo = false;
+    };
+  }, [obraId]);
+  return historico;
+}
+
+export function ListaVisitas({ historico }: { historico: RelatorioVisita[] | null }) {
+  if (historico === null) return <p className="mt-2 text-sm text-slate-400">Carregando...</p>;
+  if (historico.length === 0)
+    return (
+      <p className="mt-2 rounded-lg border border-dashed border-slate-300 p-4 text-center text-sm text-slate-400">
+        Nenhuma visita registrada ainda.
+      </p>
+    );
+  return (
+    <div className="mt-2 space-y-2">
+      {historico.map((r) => (
+        <ItemHistorico key={r.id} r={r} />
+      ))}
+    </div>
   );
 }
 
@@ -234,7 +171,7 @@ function ItemHistorico({ r }: { r: RelatorioVisita }) {
   const urls = useUrls((r.fotos ?? []).slice(0, 4));
   const rs = RESULTADO_VISITA[r.resultado];
   return (
-    <div className="rounded-xl border border-slate-100 p-3">
+    <div className="rounded-lg border border-slate-200 p-3">
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-sm font-bold text-marinho-800">{dataBR(r.data_visita)}</span>
         <span className="text-xs text-slate-400">· {r.vendedor?.nome ?? "—"}</span>
@@ -267,14 +204,15 @@ function ItemHistorico({ r }: { r: RelatorioVisita }) {
 
 function EditarFicha({
   card,
+  obra: o,
   onCancelar,
   onSalvar,
 }: {
   card: TCard;
+  obra: Obra;
   onCancelar: () => void;
   onSalvar: (obra: Record<string, unknown>, op: Record<string, unknown>) => Promise<void>;
 }) {
-  const o = card.obra;
   const [f, setF] = useState({
     construtora: o.construtora ?? "",
     status_obra: o.status_obra,
@@ -329,7 +267,7 @@ function EditarFicha({
   }
 
   return (
-    <div className="mt-3 space-y-4 rounded-2xl bg-slate-50 p-4">
+    <div className="mt-3 space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
       <div>
         <p className="mb-1.5 text-sm font-semibold text-marinho-800">Fase da obra</p>
         <div className="flex flex-wrap gap-1.5">
@@ -420,7 +358,7 @@ function EditarFicha({
 
 function Destaque({ icon, label, valor }: { icon?: React.ReactNode; label: string; valor: string }) {
   return (
-    <div className="rounded-xl bg-marinho-50 p-3">
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
       <p className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide text-slate-500">
         {icon} {label}
       </p>
@@ -429,7 +367,7 @@ function Destaque({ icon, label, valor }: { icon?: React.ReactNode; label: strin
   );
 }
 
-function Info({ label, valor }: { label: string; valor?: string | null }) {
+export function Info({ label, valor }: { label: string; valor?: string | null }) {
   return (
     <div>
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>

@@ -1,27 +1,51 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./auth";
-import type { Etapa, Obra, Oportunidade, Vendedor, Classificacao } from "./types";
+import type { Atividade, Etapa, Lead, Obra, Oportunidade, Pipeline, Vendedor, Classificacao } from "./types";
 
 export interface Card extends Oportunidade {
-  obra: Obra;
+  obra: Obra | null;
   vendedor: Vendedor | null;
+  lead: Lead | null;
 }
 
+/** Nome que aparece no card: o lead (construtora/cliente) ou, sem lead, a obra */
+export const tituloCard = (c: Card) => c.lead?.nome_exibicao || c.lead?.nome || c.obra?.nome_obra || "Sem nome";
+
+export interface NovoNegocio {
+  lead_id: string | null;
+  obra_id?: string | null;
+  etapa_id: string;
+  valor_estimado?: number;
+  vendedor_id?: string | null;
+  classificacao?: Classificacao;
+}
 
 interface DataCtx {
   loading: boolean;
+  pipelines: Pipeline[];
   etapas: Etapa[];
   cards: Card[];
   obras: Obra[];
+  leads: Lead[];
+  atividades: Atividade[];
   vendedores: Vendedor[];
+  avisar: (msg: string, tipo?: "erro" | "ok") => void;
   recarregar: () => Promise<void>;
   moverEtapa: (id: string, etapaId: string, extra?: Partial<Oportunidade>) => Promise<void>;
   setClassificacao: (id: string, c: Classificacao) => Promise<void>;
   atualizarOportunidade: (id: string, mudanca: Partial<Oportunidade>) => Promise<void>;
   setResponsavel: (id: string, vendedorId: string | null) => Promise<void>;
   atualizarObra: (obraId: string, mudanca: Partial<Obra>) => Promise<boolean>;
-  criarEtapa: (nome: string) => Promise<void>;
+  criarEtapa: (nome: string, pipelineId: string) => Promise<void>;
+  criarPipeline: (nome: string, descricao: string) => Promise<string | null>;
+  atualizarPipeline: (id: string, mudanca: Partial<Pipeline>) => Promise<void>;
+  excluirPipeline: (id: string) => Promise<boolean>;
+  criarLead: (l: Partial<Lead>) => Promise<Lead | null>;
+  atualizarLead: (id: string, mudanca: Partial<Lead>) => Promise<boolean>;
+  criarNegocio: (n: NovoNegocio) => Promise<string | null>;
+  criarAtividade: (a: Partial<Atividade>) => Promise<boolean>;
+  atualizarAtividade: (id: string, mudanca: Partial<Atividade>) => Promise<void>;
   atualizarEtapa: (id: string, mudanca: Partial<Etapa>) => Promise<void>;
   moverColuna: (id: string, direcao: -1 | 1) => Promise<void>;
   excluirEtapa: (id: string, destinoId: string | null) => Promise<void>;
@@ -42,44 +66,57 @@ const JANELA_ECO_MS = 2000;
 export function DataProvider({ children }: { children: ReactNode }) {
   const { session, profile } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [etapas, setEtapas] = useState<Etapa[]>([]);
   const [cards, setCards] = useState<Card[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
-  const [aviso, setAviso] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<{ msg: string; tipo: "erro" | "ok" } | null>(null);
 
   const carregou = useRef(false);
   const cardsRef = useRef<Card[]>([]);
   const etapasRef = useRef<Etapa[]>([]);
+  const pipelinesRef = useRef<Pipeline[]>([]);
   const vendedoresRef = useRef<Vendedor[]>([]);
   const editadosAqui = useRef(new Map<string, number>());
   const timer = useRef<number>();
 
   cardsRef.current = cards;
   etapasRef.current = etapas;
+  pipelinesRef.current = pipelines;
   vendedoresRef.current = vendedores;
 
-  const avisar = (msg: string) => {
-    setAviso(msg);
-    window.setTimeout(() => setAviso(null), 4000);
+  const avisoTimer = useRef<number>();
+  const avisar = (msg: string, tipo: "erro" | "ok" = "erro") => {
+    setAviso({ msg, tipo });
+    window.clearTimeout(avisoTimer.current);
+    avisoTimer.current = window.setTimeout(() => setAviso(null), 4000);
   };
 
   // Só a PRIMEIRA carga mostra o spinner; as demais acontecem em segundo plano.
   const recarregar = useCallback(async () => {
     if (!session) return;
     if (!carregou.current) setLoading(true);
-    const [etRes, opRes, obRes, veRes] = await Promise.all([
+    const [piRes, etRes, opRes, obRes, leRes, atRes, veRes] = await Promise.all([
+      supabase.from("pipelines").select("*").order("ordem").order("criado_em"),
       supabase.from("etapas").select("*").order("ordem"),
       supabase
         .from("oportunidades")
-        .select("*, obra:obras(*), vendedor:profiles(*)")
+        .select("*, obra:obras(*), vendedor:profiles(*), lead:leads(*)")
         .order("criado_em", { ascending: false }),
       supabase.from("obras").select("*").order("criado_em", { ascending: false }),
+      supabase.from("leads").select("*").order("nome"),
+      supabase.from("atividades").select("*").eq("concluida", false).order("data_hora", { ascending: true, nullsFirst: false }),
       supabase.from("profiles").select("*").eq("role", "vendedor").eq("status", "ativo").order("nome"),
     ]);
+    if (!piRes.error) setPipelines((piRes.data as Pipeline[]) ?? []);
     if (!etRes.error) setEtapas((etRes.data as Etapa[]) ?? []);
     if (!opRes.error) setCards((opRes.data as Card[]) ?? []);
     if (!obRes.error) setObras((obRes.data as Obra[]) ?? []);
+    if (!leRes.error) setLeads((leRes.data as Lead[]) ?? []);
+    if (!atRes.error) setAtividades((atRes.data as Atividade[]) ?? []);
     if (!veRes.error) setVendedores((veRes.data as Vendedor[]) ?? []);
     carregou.current = true;
     setLoading(false);
@@ -116,7 +153,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
             ? atual.vendedor
             : vendedoresRef.current.find((v) => v.id === novo.vendedor_id) ?? null;
         setCards((cs) =>
-          cs.map((c) => (c.id === novo.id ? { ...c, ...novo, obra: c.obra, vendedor } : c))
+          cs.map((c) => (c.id === novo.id ? { ...c, ...novo, obra: c.obra, lead: c.lead, vendedor } : c))
         );
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "oportunidades" }, agendarSync)
@@ -126,6 +163,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "obras" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "etapas" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "pipelines" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, agendarSync)
+      .on("postgres_changes", { event: "*", schema: "public", table: "atividades" }, agendarSync)
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
@@ -161,7 +201,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const atualizarObra: DataCtx["atualizarObra"] = async (obraId, mudanca) => {
     const aplicar = (o: Obra) => (o.id === obraId ? { ...o, ...mudanca } : o);
     setObras((os) => os.map(aplicar));
-    setCards((cs) => cs.map((c) => (c.obra_id === obraId ? { ...c, obra: aplicar(c.obra) } : c)));
+    setCards((cs) => cs.map((c) => (c.obra && c.obra_id === obraId ? { ...c, obra: aplicar(c.obra) } : c)));
     const { error } = await supabase.from("obras").update(mudanca).eq("id", obraId);
     if (error) {
       avisar("Não foi possível salvar os dados da obra.");
@@ -173,10 +213,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   /* ---------- Colunas do funil (só diretor) ---------- */
 
+  // `lista` = colunas de UM pipeline, já na ordem desejada
   const gravarOrdem = async (lista: Etapa[]) => {
     const nova = lista.map((e, i) => ({ ...e, ordem: i + 1 }));
     const mudou = nova.filter((e) => etapasRef.current.find((x) => x.id === e.id)?.ordem !== e.ordem);
-    setEtapas(nova);
+    const pid = lista[0]?.pipeline_id;
+    setEtapas((es) => [...es.filter((e) => e.pipeline_id !== pid), ...nova].sort((a, b) => a.ordem - b.ordem));
     const res = await Promise.all(
       mudou.map((e) => supabase.from("etapas").update({ ordem: e.ordem }).eq("id", e.id))
     );
@@ -186,14 +228,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const criarEtapa: DataCtx["criarEtapa"] = async (nome) => {
-    const lista = [...etapasRef.current];
+  const criarEtapa: DataCtx["criarEtapa"] = async (nome, pipelineId) => {
+    const lista = etapasRef.current.filter((e) => e.pipeline_id === pipelineId);
     // nova coluna entra antes de "Ganho"/"Perdido"
     const pos = lista.findIndex((e) => e.tipo !== "aberta");
     const ordemTemp = (lista[lista.length - 1]?.ordem ?? 0) + 1;
     const { data, error } = await supabase
       .from("etapas")
-      .insert({ nome, cor: "#2E78A8", ordem: ordemTemp, tipo: "aberta" })
+      .insert({ nome, cor: "#3385FF", ordem: ordemTemp, tipo: "aberta", pipeline_id: pipelineId })
       .select()
       .single();
     if (error || !data) return avisar("Não foi possível criar a coluna.");
@@ -211,7 +253,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const moverColuna: DataCtx["moverColuna"] = async (id, direcao) => {
-    const lista = [...etapasRef.current];
+    const pid = etapasRef.current.find((e) => e.id === id)?.pipeline_id;
+    const lista = etapasRef.current.filter((e) => e.pipeline_id === pid);
     const i = lista.findIndex((e) => e.id === id);
     const j = i + direcao;
     if (i < 0 || j < 0 || j >= lista.length) return;
@@ -241,6 +284,128 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const setClassificacao: DataCtx["setClassificacao"] = (id, classificacao) =>
     atualizarOportunidade(id, { classificacao });
 
+  /* ---------- Pipelines ---------- */
+
+  const criarPipeline: DataCtx["criarPipeline"] = async (nome, descricao) => {
+    const ordem = (pipelinesRef.current[pipelinesRef.current.length - 1]?.ordem ?? 0) + 1;
+    const { data, error } = await supabase.from("pipelines").insert({ nome, descricao, ordem }).select().single();
+    if (error || !data) {
+      avisar("Não foi possível criar o pipeline.");
+      return null;
+    }
+    // colunas iniciais, como no funil básico
+    const colunas = [
+      { nome: "Novo", cor: "#64748b", tipo: "aberta" },
+      { nome: "Em andamento", cor: "#3385FF", tipo: "aberta" },
+      { nome: "Ganho", cor: "#22c55e", tipo: "ganho" },
+      { nome: "Perdido", cor: "#ef4444", tipo: "perdido" },
+    ].map((c, i) => ({ ...c, ordem: i + 1, pipeline_id: data.id }));
+    await supabase.from("etapas").insert(colunas);
+    await recarregar();
+    return data.id as string;
+  };
+
+  const atualizarPipeline: DataCtx["atualizarPipeline"] = async (id, mudanca) => {
+    setPipelines((ps) => ps.map((p) => (p.id === id ? { ...p, ...mudanca } : p)));
+    const { error } = await supabase.from("pipelines").update(mudanca).eq("id", id);
+    if (error) {
+      avisar("Não foi possível salvar o pipeline.");
+      agendarSync();
+    }
+  };
+
+  const excluirPipeline: DataCtx["excluirPipeline"] = async (id) => {
+    const colunas = new Set(etapasRef.current.filter((e) => e.pipeline_id === id).map((e) => e.id));
+    if (cardsRef.current.some((c) => colunas.has(c.etapa_id))) {
+      avisar("Mova ou exclua os negócios deste pipeline antes de apagá-lo.");
+      return false;
+    }
+    const { error } = await supabase.from("pipelines").delete().eq("id", id);
+    if (error) {
+      avisar("Não foi possível excluir o pipeline.");
+      return false;
+    }
+    await recarregar();
+    return true;
+  };
+
+  /* ---------- Leads, negócios e atividades ---------- */
+
+  const criarLead: DataCtx["criarLead"] = async (l) => {
+    const { data, error } = await supabase
+      .from("leads")
+      .insert({ responsavel_id: profile?.id ?? null, ...l })
+      .select()
+      .single();
+    if (error || !data) {
+      avisar("Não foi possível criar o lead.");
+      return null;
+    }
+    setLeads((ls) => [...ls, data as Lead].sort((a, b) => a.nome.localeCompare(b.nome)));
+    return data as Lead;
+  };
+
+  const atualizarLead: DataCtx["atualizarLead"] = async (id, mudanca) => {
+    const aplicar = (l: Lead) => (l.id === id ? { ...l, ...mudanca } : l);
+    setLeads((ls) => ls.map(aplicar));
+    setCards((cs) => cs.map((c) => (c.lead?.id === id ? { ...c, lead: aplicar(c.lead) } : c)));
+    const { error } = await supabase.from("leads").update(mudanca).eq("id", id);
+    if (error) {
+      avisar("Não foi possível salvar o lead.");
+      agendarSync();
+      return false;
+    }
+    return true;
+  };
+
+  const criarNegocio: DataCtx["criarNegocio"] = async (n) => {
+    const { data, error } = await supabase
+      .from("oportunidades")
+      .insert({
+        lead_id: n.lead_id,
+        obra_id: n.obra_id ?? null,
+        etapa_id: n.etapa_id,
+        valor_estimado: n.valor_estimado ?? 0,
+        vendedor_id: n.vendedor_id === undefined ? profile?.id ?? null : n.vendedor_id,
+        classificacao: n.classificacao ?? "morno",
+      })
+      .select("id")
+      .single();
+    if (error || !data) {
+      avisar("Não foi possível criar o negócio.");
+      return null;
+    }
+    await recarregar();
+    return data.id as string;
+  };
+
+  const criarAtividade: DataCtx["criarAtividade"] = async (a) => {
+    const { data, error } = await supabase
+      .from("atividades")
+      .insert({ responsavel_id: profile?.id ?? null, ...a })
+      .select()
+      .single();
+    if (error || !data) {
+      avisar("Não foi possível criar a atividade.");
+      return false;
+    }
+    setAtividades((as) =>
+      [...as, data as Atividade].sort((x, y) => (x.data_hora ?? "9").localeCompare(y.data_hora ?? "9"))
+    );
+    return true;
+  };
+
+  const atualizarAtividade: DataCtx["atualizarAtividade"] = async (id, mudanca) => {
+    setAtividades((as) =>
+      mudanca.concluida ? as.filter((a) => a.id !== id) : as.map((a) => (a.id === id ? { ...a, ...mudanca } : a))
+    );
+    const { error } = await supabase.from("atividades").update(mudanca).eq("id", id);
+    if (error) {
+      avisar("Não foi possível salvar a atividade.");
+      agendarSync();
+    }
+  };
+
   const criarObra: DataCtx["criarObra"] = async (o, vendedorId, valorEstimado, classificacao) => {
     const payload = { ...o, criado_por: profile?.id ?? null };
     const { data: obra, error } = await supabase.from("obras").insert(payload).select().single();
@@ -260,10 +425,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     <Ctx.Provider
       value={{
         loading,
+        pipelines,
         etapas,
         cards,
         obras,
+        leads,
+        atividades,
         vendedores,
+        avisar,
         recarregar,
         moverEtapa,
         setClassificacao,
@@ -275,12 +444,33 @@ export function DataProvider({ children }: { children: ReactNode }) {
         moverColuna,
         excluirEtapa,
         criarObra,
-              }}
+        criarPipeline,
+        atualizarPipeline,
+        excluirPipeline,
+        criarLead,
+        atualizarLead,
+        criarNegocio,
+        criarAtividade,
+        atualizarAtividade,
+      }}
     >
       {children}
       {aviso && (
-        <div className="no-print fixed inset-x-4 bottom-24 z-[60] mx-auto max-w-md rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-semibold text-white shadow-cardhover lg:bottom-6">
-          {aviso}
+        <div
+          className={
+            "no-print fixed bottom-24 right-4 z-[80] flex max-w-sm items-center gap-2.5 rounded-lg border bg-white px-4 py-3 text-sm font-medium shadow-cardhover lg:bottom-6 " +
+            (aviso.tipo === "ok" ? "border-green-200 text-green-700" : "border-red-200 text-red-700")
+          }
+        >
+          <span
+            className={
+              "grid h-5 w-5 flex-shrink-0 place-items-center rounded-full text-[11px] font-bold text-white " +
+              (aviso.tipo === "ok" ? "bg-green-600" : "bg-red-600")
+            }
+          >
+            {aviso.tipo === "ok" ? "✓" : "!"}
+          </span>
+          {aviso.msg}
         </div>
       )}
     </Ctx.Provider>

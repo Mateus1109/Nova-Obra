@@ -14,10 +14,101 @@ export type Origem = "levantamento" | "indicacao" | "licitacao" | "outro";
 export type TipoEtapa = "aberta" | "ganho" | "perdido";
 export interface Etapa {
   id: string;
+  pipeline_id: string;
   nome: string;
   cor: string;
   ordem: number;
   tipo: TipoEtapa;
+}
+
+export interface Pipeline {
+  id: string;
+  nome: string;
+  descricao: string;
+  grupo: string;
+  ordem: number;
+}
+
+export type TipoLead = "pessoa" | "empresa";
+
+export interface Lead {
+  id: string;
+  tipo: TipoLead;
+  nome: string;
+  nome_exibicao: string;
+  telefone: string;
+  email: string;
+  documento: string;
+  segmento: string;
+  cargo: string;
+  origem: string;
+  data_referencia: string | null;
+  instagram: string;
+  site: string;
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento: string;
+  bairro: string;
+  cidade: string;
+  uf: string;
+  notas: string;
+  tags: string[];
+  empresa_id: string | null;
+  contato_principal_id: string | null;
+  responsavel_id: string | null;
+  criado_por: string | null;
+  criado_em: string;
+}
+
+export const SEGMENTOS = [
+  "Construtora",
+  "Incorporadora",
+  "Engenharia / projetos",
+  "Pré-moldados",
+  "Órgão público",
+  "Pessoa física (obra própria)",
+  "Outro",
+];
+
+export const ORIGENS = ["Prospecção em campo", "Indicação", "Cowork / pesquisa", "Instagram", "Site", "WhatsApp", "Ligação", "Outro"];
+
+export type TipoAtividade = "tarefa" | "ligacao" | "whatsapp" | "visita" | "reuniao" | "email" | "proposta";
+
+export const TIPO_ATIVIDADE: Record<TipoAtividade, string> = {
+  tarefa: "Tarefa",
+  ligacao: "Ligação",
+  whatsapp: "WhatsApp",
+  visita: "Visita",
+  reuniao: "Reunião",
+  email: "E-mail",
+  proposta: "Enviar proposta",
+};
+
+export interface Atividade {
+  id: string;
+  oportunidade_id: string | null;
+  lead_id: string | null;
+  tipo: TipoAtividade;
+  titulo: string;
+  descricao: string;
+  data_hora: string | null;
+  concluida: boolean;
+  concluida_em: string | null;
+  responsavel_id: string | null;
+  criado_por: string | null;
+  criado_em: string;
+}
+
+export interface Historico {
+  id: string;
+  oportunidade_id: string | null;
+  lead_id: string | null;
+  usuario_id: string | null;
+  acao: string;
+  detalhe: string;
+  criado_em: string;
+  usuario?: { nome: string } | null;
 }
 
 export type FaseObra = "projeto" | "terraplanagem" | "fundacao" | "estrutura" | "alvenaria" | "acabamento";
@@ -97,7 +188,9 @@ export interface Obra {
 
 export interface Oportunidade {
   id: string;
-  obra_id: string;
+  obra_id: string | null;
+  lead_id: string | null;
+  tags: string[];
   vendedor_id: string | null;
   etapa_id: string;
   classificacao: Classificacao;

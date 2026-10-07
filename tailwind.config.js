@@ -4,29 +4,32 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Figtree", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["Inter", "ui-sans-serif", "system-ui", "sans-serif"],
       },
       colors: {
+        // Paleta no padrão DataCrazy: texto quase preto + azul de ação
         marinho: {
-          DEFAULT: "#173A5E",
-          50: "#eef3f8",
-          100: "#d4e0ec",
-          600: "#1d4a76",
-          700: "#173A5E",
-          800: "#112c47",
-          900: "#0b1d30",
+          DEFAULT: "#020817",
+          50: "#f1f5f9",
+          100: "#e2e8f0",
+          600: "#1e293b",
+          700: "#0f172a",
+          800: "#020817",
+          900: "#020617",
         },
         aco: {
-          DEFAULT: "#2E78A8",
-          50: "#eef6fb",
-          100: "#d3e8f3",
-          500: "#2E78A8",
-          600: "#276690",
+          DEFAULT: "#3385FF",
+          50: "#eff6ff",
+          100: "#dbeafe",
+          200: "#bfdbfe",
+          500: "#3385FF",
+          600: "#1f6fe5",
+          700: "#1a5cc0",
         },
       },
       boxShadow: {
-        card: "0 1px 3px rgba(23,58,94,0.08), 0 1px 2px rgba(23,58,94,0.06)",
-        cardhover: "0 6px 20px rgba(23,58,94,0.12)",
+        card: "0 1px 2px rgba(2,8,23,0.06)",
+        cardhover: "0 8px 24px rgba(2,8,23,0.10)",
       },
     },
   },

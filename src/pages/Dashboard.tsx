@@ -5,7 +5,7 @@ import {
 } from "recharts";
 import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 import { Building2, CheckCheck, TrendingUp, AlertTriangle, Flame, Navigation } from "lucide-react";
-import { useData } from "@/lib/data";
+import { tituloCard, useData } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
 import { Card, Empty, Spinner } from "@/components/ui";
 import { CLASSIFICACOES, type Classificacao } from "@/lib/types";
@@ -155,8 +155,8 @@ export default function Dashboard() {
               {paradas.slice(0, 6).map((c) => (
                 <div key={c.id} className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-marinho-800">{c.obra.nome_obra}</p>
-                    <p className="text-xs text-slate-500">{c.vendedor?.nome} · {c.obra.bairro}</p>
+                    <p className="truncate text-sm font-bold text-marinho-800">{tituloCard(c)}</p>
+                    <p className="text-xs text-slate-500">{[c.vendedor?.nome, c.obra?.nome_obra].filter(Boolean).join(" · ")}</p>
                   </div>
                   <span className="flex-shrink-0 rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-800">
                     {diasDesde(c.atualizado_em)}d
