@@ -45,13 +45,10 @@ import { tituloCard, useData, type Card as Negocio } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { Avatar, Button, Card, Empty, Spinner } from "@/components/ui";
-import { ICONE_ATIVIDADE, quandoAtividade } from "@/components/Atividades";
 import {
   PRODUTO_LABEL,
   RESULTADO_VISITA,
-  TIPO_ATIVIDADE,
   TIPO_RELATORIO,
-  type Atividade,
   type Obra,
   type RelatorioVisita,
   type ResultadoVisita,
@@ -89,7 +86,6 @@ const MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "o
 
 const ABAS = [
   { key: "negocios", label: "Negócios" },
-  { key: "atividades", label: "Atividades" },
   { key: "visitas", label: "Visitas" },
 ] as const;
 type Aba = (typeof ABAS)[number]["key"];
@@ -291,7 +287,7 @@ interface LinhaVendedorVisita {
    ===================================================================== */
 
 export default function Dashboard() {
-  const { cards, etapas, pipelines, obras, leads, vendedores, atividades, motivosPerda, tiposAtividade, loading, avisar } =
+  const { cards, etapas, pipelines, obras, leads, vendedores, motivosPerda, loading, avisar } =
     useData();
   const { profile, isAdmin, pode } = useAuth();
   const navigate = useNavigate();
@@ -435,78 +431,6 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cards, etapaPorId, iv, grade, pipelineId, filtroAtendente, motivosPerda, nomeUsuario]);
 
-  /* ---------- Atividades (busca as do período quando a aba abre) ---------- */
-  const [ativPeriodo, setAtivPeriodo] = useState<Atividade[] | null>(null);
-  const ivAtividades = useRef("");
-  // muda só quando as atividades mudam de fato (o contexto recria a lista a cada sincronização)
-  const sinalAtividades = atividades.map((a) => `${a.id}:${a.data_hora ?? ""}:${a.responsavel_id ?? ""}`).join(",");
-  useEffect(() => {
-    if (aba !== "atividades") return;
-    let vivo = true;
-    // período novo: some com os números do período anterior até a busca voltar
-    const chave = `${iv.ini}-${iv.fim}`;
-    if (ivAtividades.current !== chave) {
-      ivAtividades.current = chave;
-      setAtivPeriodo(null);
-    }
-    const a = new Date(iv.ini).toISOString();
-    const b = new Date(iv.fim).toISOString();
-    const entre = (campo: string) => `and(${campo}.gte."${a}",${campo}.lt."${b}")`;
-    supabase
-      .from("atividades")
-      .select("*")
-      .or([entre("data_hora"), entre("concluida_em"), entre("criado_em")].join(","))
-      .order("data_hora", { ascending: true, nullsFirst: false })
-      .limit(5000)
-      .then(({ data, error }) => {
-        if (!vivo) return;
-        if (error) avisar("Não foi possível carregar as atividades do período.");
-        setAtivPeriodo((data as Atividade[]) ?? []);
-      });
-    return () => {
-      vivo = false;
-    };
-    // recarrega junto quando alguém cria, conclui ou reagenda uma atividade
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aba, iv, sinalAtividades]);
-
-  const atv = useMemo(() => {
-    const passa = (a: Atividade) => {
-      // atividade de negócio excluído (lixeira) não conta
-      if (a.oportunidade_id && !cardPorId.has(a.oportunidade_id)) return false;
-      if (!doAtendente(a.responsavel_id)) return false;
-      if (!pipelineId) return true;
-      const c = a.oportunidade_id ? cardPorId.get(a.oportunidade_id) : undefined;
-      return !!c && doPipeline(c.etapa_id);
-    };
-    const lista = (ativPeriodo ?? []).filter(passa);
-    const pendentes = lista.filter((a) => !a.concluida && dentro(a.data_hora, iv));
-    const concluidas = lista.filter((a) => a.concluida && dentro(a.concluida_em, iv));
-    const criadas = lista.filter((a) => dentro(a.criado_em, iv));
-    const agora = Date.now();
-    const fimHoje = somaDias(new Date(new Date().setHours(0, 0, 0, 0)), 1).getTime();
-    const abertas = atividades.filter((a) => !a.concluida && passa(a));
-    const atrasadas = abertas.filter((a) => a.data_hora && new Date(a.data_hora).getTime() < agora);
-    const urgentes = abertas
-      .filter((a) => a.data_hora && new Date(a.data_hora).getTime() < fimHoje)
-      .sort((a, b) => (a.data_hora ?? "").localeCompare(b.data_hora ?? ""));
-
-    const m = new Map<string, LinhaResponsavel>();
-    const somar = (a: Atividade, campo: "concluidas" | "pendentes") => {
-      const k = a.responsavel_id ?? SEM;
-      const g = m.get(k) ?? { id: k, nome: nomeDe(a.responsavel_id, "Sem responsável"), concluidas: 0, pendentes: 0 };
-      g[campo] += 1;
-      m.set(k, g);
-    };
-    concluidas.forEach((a) => somar(a, "concluidas"));
-    pendentes.forEach((a) => somar(a, "pendentes"));
-    const porResponsavel = Array.from(m.values()).sort(
-      (a, b) => b.concluidas + b.pendentes - (a.concluidas + a.pendentes) || b.concluidas - a.concluidas
-    );
-    return { pendentes, concluidas, criadas, atrasadas, urgentes, porResponsavel };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ativPeriodo, atividades, iv, pipelineId, filtroAtendente, cardPorId, etapaPorId, nomeUsuario]);
-
   /* ---------- Visitas (relatórios do período) ---------- */
   const [visitas, setVisitas] = useState<RelatorioVisita[] | null>(null);
   useEffect(() => {
@@ -575,23 +499,9 @@ export default function Dashboard() {
   }, [visitas, grade, filtroAtendente, nomeUsuario]);
 
   /* ---------- Rótulos auxiliares ---------- */
-  const tituloAtividade = (a: Atividade) =>
-    a.titulo || tiposAtividade.find((t) => t.id === a.tipo_id)?.nome || TIPO_ATIVIDADE[a.tipo] || "Atividade";
-  const tipoAtividade = (a: Atividade) =>
-    tiposAtividade.find((t) => t.id === a.tipo_id)?.nome ?? TIPO_ATIVIDADE[a.tipo] ?? "Atividade";
-  const alvoAtividade = (a: Atividade) => {
-    const c = a.oportunidade_id ? cardPorId.get(a.oportunidade_id) : undefined;
-    if (c) return tituloCard(c);
-    return leads.find((l) => l.id === a.lead_id)?.nome ?? "";
-  };
   const abrirNegocio = (c: Negocio) => {
     const pid = etapaPorId.get(c.etapa_id)?.pipeline_id;
     if (pid) navigate(`/pipelines/${pid}?negocio=${c.id}`);
-  };
-  const abrirAtividade = (a: Atividade) => {
-    const c = a.oportunidade_id ? cardPorId.get(a.oportunidade_id) : undefined;
-    if (c) abrirNegocio(c);
-    else if (a.lead_id) navigate("/leads");
   };
   const nomeFiltroAtendente = !filtroAtendente
     ? "Todos"
@@ -604,7 +514,6 @@ export default function Dashboard() {
   /* ---------- Exportar PDF ---------- */
   async function exportar() {
     if (exportando) return;
-    if (aba === "atividades" && !ativPeriodo) return avisar("Aguarde as atividades carregarem.");
     if (aba === "visitas" && !visitas) return avisar("Aguarde as visitas carregarem.");
     setExportando(true);
     try {
@@ -704,42 +613,6 @@ export default function Dashboard() {
             ]),
           },
         ];
-      } else if (aba === "atividades") {
-        kpis = [
-          { titulo: "Pendentes no período", valor: String(atv.pendentes.length), sub: "em aberto, com data no período", cor: COR.pendentes },
-          { titulo: "Atrasadas (hoje)", valor: String(atv.atrasadas.length), sub: "em aberto e vencidas", cor: "#b91c1c" },
-          { titulo: "Concluídas no período", valor: String(atv.concluidas.length), sub: "finalizadas no período", cor: "#15803d" },
-          { titulo: "Criadas no período", valor: String(atv.criadas.length), sub: "novas atividades", cor: "#7c3aed" },
-        ];
-        tabelas = [
-          {
-            titulo: "Atividades por atendente",
-            colunas: [
-              { t: "Atendente", w: 0.46 },
-              { t: "Concluídas", w: 0.18, dir: true },
-              { t: "Pendentes", w: 0.18, dir: true },
-              { t: "Total", w: 0.18, dir: true },
-            ],
-            linhas: atv.porResponsavel.map((r) => [r.nome, String(r.concluidas), String(r.pendentes), String(r.concluidas + r.pendentes)]),
-          },
-          {
-            titulo: "Atrasadas e para hoje",
-            colunas: [
-              { t: "Atividade", w: 0.3 },
-              { t: "Tipo", w: 0.14 },
-              { t: "Negócio / lead", w: 0.22 },
-              { t: "Responsável", w: 0.18 },
-              { t: "Quando", w: 0.16, dir: true },
-            ],
-            linhas: atv.urgentes.map((a) => [
-              tituloAtividade(a),
-              tipoAtividade(a),
-              alvoAtividade(a),
-              nomeDe(a.responsavel_id, "Sem responsável"),
-              quandoAtividade(a.data_hora),
-            ]),
-          },
-        ];
       } else {
         kpis = [
           { titulo: "Visitas", valor: String(vis.lista.length), sub: "relatórios no período", cor: COR.criados },
@@ -819,7 +692,7 @@ export default function Dashboard() {
       <header className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h1 className="text-[1.75rem] font-semibold leading-tight text-marinho-800">Dashboard</h1>
-          <p className="text-slate-500">Visão geral do seu desempenho e atividades</p>
+          <p className="text-slate-500">Visão geral do seu desempenho e visitas</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <div className="flex min-w-0 gap-2">
@@ -1026,114 +899,6 @@ export default function Dashboard() {
           </div>
         </>
       )}
-
-      {aba === "atividades" &&
-        (!ativPeriodo ? (
-          <Spinner />
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <Kpi
-                titulo="Pendentes"
-                valor={atv.pendentes.length.toLocaleString("pt-BR")}
-                sub="com data no período"
-                icone={<ListTodo size={16} />}
-                cor="#1f6fe5"
-                fundo="#eff6ff"
-                destaque
-                info="Atividades ainda não concluídas com data marcada dentro do período escolhido."
-              />
-              <Kpi
-                titulo="Atrasadas"
-                valor={atv.atrasadas.length.toLocaleString("pt-BR")}
-                sub="em aberto e vencidas"
-                icone={<AlarmClock size={16} />}
-                cor="#b91c1c"
-                fundo="#fee2e2"
-                info="Atividades em aberto cuja data/hora já passou, de qualquer período (situação de agora)."
-              />
-              <Kpi
-                titulo="Concluídas no período"
-                valor={atv.concluidas.length.toLocaleString("pt-BR")}
-                sub="finalizadas"
-                icone={<CheckCircle2 size={16} />}
-                cor="#15803d"
-                fundo="#dcfce7"
-              />
-              <Kpi
-                titulo="Criadas no período"
-                valor={atv.criadas.length.toLocaleString("pt-BR")}
-                sub="novas atividades"
-                icone={<CalendarPlus size={16} />}
-                cor="#7c3aed"
-                fundo="#ede9fe"
-              />
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-3">
-              <Painel className="lg:col-span-2" titulo="Atividades por atendente" sub="Concluídas e pendentes no período">
-                <GraficoResponsaveis linhas={atv.porResponsavel} />
-              </Painel>
-              <Painel
-                titulo="Atrasadas e para hoje"
-                sub="O que precisa de atenção agora"
-                acao={
-                  atv.urgentes.length > 0 ? (
-                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-[0.75rem] font-semibold text-red-700">
-                      {atv.urgentes.length}
-                    </span>
-                  ) : undefined
-                }
-              >
-                {atv.urgentes.length === 0 ? (
-                  <SemDados texto="Nada atrasado nem para hoje." icone={<CheckCircle2 size={26} />} />
-                ) : (
-                  <ul className="-mx-1 max-h-[22rem] space-y-1 overflow-y-auto px-1">
-                    {atv.urgentes.map((a) => {
-                      const Icone = ICONE_ATIVIDADE[a.tipo] ?? ListTodo;
-                      const vencida = !!a.data_hora && new Date(a.data_hora).getTime() < Date.now();
-                      const alvo = alvoAtividade(a);
-                      return (
-                        <li key={a.id}>
-                          <button
-                            onClick={() => abrirAtividade(a)}
-                            className="flex w-full items-start gap-2.5 rounded-md border border-transparent px-2 py-2 text-left hover:border-slate-200 hover:bg-slate-50"
-                          >
-                            <span
-                              className={cx(
-                                "mt-0.5 grid h-7 w-7 flex-shrink-0 place-items-center rounded-full",
-                                vencida ? "bg-red-50 text-red-600" : "bg-aco-50 text-aco-600"
-                              )}
-                            >
-                              <Icone size={14} />
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-sm font-medium text-marinho-800">{tituloAtividade(a)}</p>
-                              <p className="truncate text-[0.75rem] text-slate-500">
-                                {[alvo, nomeDe(a.responsavel_id, "Sem responsável")].filter(Boolean).join(" · ")}
-                              </p>
-                            </div>
-                            <div className="flex flex-shrink-0 flex-col items-end gap-0.5">
-                              <span
-                                className={cx(
-                                  "rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold",
-                                  vencida ? "bg-red-100 text-red-700" : "bg-aco-50 text-aco-700"
-                                )}
-                              >
-                                {vencida ? "Atrasada" : "Hoje"}
-                              </span>
-                              <span className="text-[0.6875rem] text-slate-500">{quandoAtividade(a.data_hora)}</span>
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </Painel>
-            </div>
-          </>
-        ))}
 
       {aba === "visitas" &&
         (!visitas ? (

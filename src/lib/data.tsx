@@ -4,7 +4,6 @@ import { useAuth } from "./auth";
 import {
   ORIGENS,
   SEGMENTOS,
-  type Atividade,
   type CampoAdicional,
   type Classificacao,
   type Etapa,
@@ -17,7 +16,6 @@ import {
   type Pipeline,
   type PipelineMembro,
   type TagConfig,
-  type TipoAtividadeConfig,
   type Vendedor,
 } from "./types";
 
@@ -45,7 +43,6 @@ export interface NovoNegocio {
 export interface LinhasConfig {
   motivos_perda: MotivoPerda;
   tags: TagConfig;
-  tipos_atividade: TipoAtividadeConfig;
   listas_opcoes: OpcaoLista;
   campos_adicionais: CampoAdicional;
 }
@@ -56,7 +53,6 @@ interface DataCtx {
   /* ---- Configurações ---- */
   motivosPerda: MotivoPerda[];
   tagsConfig: TagConfig[];
-  tiposAtividade: TipoAtividadeConfig[];
   listas: OpcaoLista[];
   camposAdicionais: CampoAdicional[];
   pipelineMembros: PipelineMembro[];
@@ -83,7 +79,6 @@ interface DataCtx {
   cards: Card[];
   obras: Obra[];
   leads: Lead[];
-  atividades: Atividade[];
   vendedores: Vendedor[];
   avisar: (msg: string, tipo?: "erro" | "ok") => void;
   recarregar: () => Promise<void>;
@@ -99,8 +94,6 @@ interface DataCtx {
   criarLead: (l: Partial<Lead>) => Promise<Lead | null>;
   atualizarLead: (id: string, mudanca: Partial<Lead>) => Promise<boolean>;
   criarNegocio: (n: NovoNegocio) => Promise<string | null>;
-  criarAtividade: (a: Partial<Atividade>) => Promise<boolean>;
-  atualizarAtividade: (id: string, mudanca: Partial<Atividade>) => Promise<void>;
   atualizarEtapa: (id: string, mudanca: Partial<Etapa>) => Promise<void>;
   moverColuna: (id: string, direcao: -1 | 1) => Promise<void>;
   excluirEtapa: (id: string, destinoId: string | null) => Promise<void>;
@@ -121,12 +114,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [cards, setCards] = useState<Card[]>([]);
   const [obras, setObras] = useState<Obra[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [vendedores, setVendedores] = useState<Vendedor[]>([]);
   const [aviso, setAviso] = useState<{ msg: string; tipo: "erro" | "ok" } | null>(null);
   const [motivosPerda, setMotivosPerda] = useState<MotivoPerda[]>([]);
   const [tagsConfig, setTagsConfig] = useState<TagConfig[]>([]);
-  const [tiposAtividade, setTiposAtividade] = useState<TipoAtividadeConfig[]>([]);
   const [listas, setListas] = useState<OpcaoLista[]>([]);
   const [camposAdicionais, setCamposAdicionais] = useState<CampoAdicional[]>([]);
   const [pipelineMembros, setPipelineMembros] = useState<PipelineMembro[]>([]);
@@ -155,7 +146,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const recarregar = useCallback(async () => {
     if (!session) return;
     if (!carregou.current) setLoading(true);
-    const [piRes, etRes, opRes, obRes, leRes, atRes, veRes, moRes, tgRes, taRes, liRes, caRes, pmRes] = await Promise.all([
+    const [piRes, etRes, opRes, obRes, leRes, veRes, moRes, tgRes, liRes, caRes, pmRes] = await Promise.all([
       supabase.from("pipelines").select("*").order("ordem").order("criado_em"),
       supabase.from("etapas").select("*").order("ordem"),
       supabase
@@ -166,11 +157,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
         .order("criado_em", { ascending: false }),
       supabase.from("obras").select("*").order("criado_em", { ascending: false }),
       supabase.from("leads").select("*").order("nome"),
-      supabase.from("atividades").select("*").eq("concluida", false).order("data_hora", { ascending: true, nullsFirst: false }),
       supabase.from("profiles").select("*").eq("role", "vendedor").eq("status", "ativo").order("nome"),
       supabase.from("motivos_perda").select("*").order("ordem").order("criado_em"),
       supabase.from("tags").select("*").order("nome"),
-      supabase.from("tipos_atividade").select("*").order("ordem").order("criado_em"),
       supabase.from("listas_opcoes").select("*").order("ordem").order("valor"),
       supabase.from("campos_adicionais").select("*").order("ordem").order("criado_em"),
       supabase.from("pipeline_membros").select("*"),
@@ -181,11 +170,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     else avisar("Não foi possível carregar os negócios. Recarregue a página.");
     if (!obRes.error) setObras((obRes.data as Obra[]) ?? []);
     if (!leRes.error) setLeads((leRes.data as Lead[]) ?? []);
-    if (!atRes.error) setAtividades((atRes.data as Atividade[]) ?? []);
     if (!veRes.error) setVendedores((veRes.data as Vendedor[]) ?? []);
     if (!moRes.error) setMotivosPerda((moRes.data as MotivoPerda[]) ?? []);
     if (!tgRes.error) setTagsConfig((tgRes.data as TagConfig[]) ?? []);
-    if (!taRes.error) setTiposAtividade((taRes.data as TipoAtividadeConfig[]) ?? []);
     if (!liRes.error) setListas((liRes.data as OpcaoLista[]) ?? []);
     if (!caRes.error) setCamposAdicionais((caRes.data as CampoAdicional[]) ?? []);
     if (!pmRes.error) setPipelineMembros((pmRes.data as PipelineMembro[]) ?? []);
@@ -240,10 +227,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
       .on("postgres_changes", { event: "*", schema: "public", table: "etapas" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "pipelines" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "leads" }, agendarSync)
-      .on("postgres_changes", { event: "*", schema: "public", table: "atividades" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "motivos_perda" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "tags" }, agendarSync)
-      .on("postgres_changes", { event: "*", schema: "public", table: "tipos_atividade" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "listas_opcoes" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "campos_adicionais" }, agendarSync)
       .on("postgres_changes", { event: "*", schema: "public", table: "pipeline_membros" }, agendarSync)
@@ -496,33 +481,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return data.id as string;
   };
 
-  const criarAtividade: DataCtx["criarAtividade"] = async (a) => {
-    const { data, error } = await supabase
-      .from("atividades")
-      .insert({ responsavel_id: profile?.id ?? null, ...a })
-      .select()
-      .single();
-    if (error || !data) {
-      avisar("Não foi possível criar a atividade.");
-      return false;
-    }
-    setAtividades((as) =>
-      [...as, data as Atividade].sort((x, y) => (x.data_hora ?? "9").localeCompare(y.data_hora ?? "9"))
-    );
-    return true;
-  };
-
-  const atualizarAtividade: DataCtx["atualizarAtividade"] = async (id, mudanca) => {
-    setAtividades((as) =>
-      mudanca.concluida ? as.filter((a) => a.id !== id) : as.map((a) => (a.id === id ? { ...a, ...mudanca } : a))
-    );
-    const { error } = await supabase.from("atividades").update(mudanca).eq("id", id);
-    if (error) {
-      avisar("Não foi possível salvar a atividade.");
-      agendarSync();
-    }
-  };
-
 
 
   /* ---------- Configurações ---------- */
@@ -705,7 +663,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         loading,
         motivosPerda,
         tagsConfig,
-        tiposAtividade,
         listas,
         camposAdicionais,
         pipelineMembros,
@@ -727,7 +684,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         cards,
         obras,
         leads,
-        atividades,
         vendedores,
         avisar,
         recarregar,
@@ -747,8 +703,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
         criarLead,
         atualizarLead,
         criarNegocio,
-        criarAtividade,
-        atualizarAtividade,
       }}
     >
       {children}

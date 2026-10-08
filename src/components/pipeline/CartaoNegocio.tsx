@@ -1,11 +1,10 @@
 import { useState, type SyntheticEvent } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { Banknote, CalendarClock, CalendarDays, CircleUserRound, PlusCircle, Tags } from "lucide-react";
+import { Banknote, CalendarDays, CircleUserRound, Tags } from "lucide-react";
 import { tituloCard, useData, type Card } from "@/lib/data";
-import { FASE_LABEL, type Atividade } from "@/lib/types";
+import { FASE_LABEL } from "@/lib/types";
 import { Avatar, SeloTipo, Tag } from "@/components/ui";
 import { SeloStatus } from "@/components/StatusNegocio";
-import { ICONE_ATIVIDADE, atrasada, quandoAtividade } from "@/components/Atividades";
 import { CampoTags } from "@/components/NovoLead";
 import { useAuth } from "@/lib/auth";
 import { brl, cx, dataBR } from "@/lib/utils";
@@ -18,8 +17,6 @@ const naoArrasta = { onPointerDown: parar, onMouseDown: parar, onTouchStart: par
 interface Props {
   card: Card;
   numero: number;
-  atividade?: Atividade;
-  onAtividade?: (c: Card) => void;
 }
 
 /** Card do quadro, arrastável entre colunas e para a barra Ganhar / Perder / Excluir */
@@ -45,14 +42,13 @@ export function KanbanCard({ arrastavel, onOpen, ...p }: Props & { arrastavel: b
 }
 
 /** Aparência do card (também usada na cópia que segue o cursor durante o arraste) */
-export function CartaoNegocio({ card, numero, atividade, onAtividade, sobreposto }: Props & { sobreposto?: boolean }) {
+export function CartaoNegocio({ card, numero, sobreposto }: Props & { sobreposto?: boolean }) {
   const { atualizarOportunidade, corTag } = useData();
   // editar tags é alterar o negócio: só quem pode mover no funil (mesma regra do banco)
   const podeEditar = useAuth().pode("mover_funil");
   const [tags, setTags] = useState(false);
   const nome = tituloCard(card);
   const status = statusDe(card);
-  const Icone = atividade ? ICONE_ATIVIDADE[atividade.tipo] ?? CalendarClock : CalendarClock;
 
   return (
     <div
@@ -97,29 +93,6 @@ export function CartaoNegocio({ card, numero, atividade, onAtividade, sobreposto
             <span className="ml-auto rounded bg-slate-100 px-1.5 text-[0.6875rem] text-slate-600">{FASE_LABEL[card.obra.fase_obra]}</span>
           )}
         </p>
-        <div className="flex items-center gap-2.5 text-slate-500">
-          <Icone size={16} className="flex-shrink-0" />
-          {atividade ? (
-            <span className={cx("min-w-0 flex-1 truncate", atrasada(atividade) ? "font-medium text-red-600" : "text-marinho-800")}>
-              {atividade.titulo} · {quandoAtividade(atividade.data_hora)}
-            </span>
-          ) : (
-            <span className="flex-1">Sem atividades</span>
-          )}
-          {onAtividade && (
-            <button
-              {...naoArrasta}
-              onClick={(e) => {
-                parar(e);
-                onAtividade(card);
-              }}
-              className="rounded-full text-slate-500 hover:text-aco-600"
-              aria-label="Nova atividade"
-            >
-              <PlusCircle size={19} />
-            </button>
-          )}
-        </div>
       </div>
 
       <div className="mt-3 flex items-center gap-1.5 border-t border-slate-100 pt-2.5" {...naoArrasta}>

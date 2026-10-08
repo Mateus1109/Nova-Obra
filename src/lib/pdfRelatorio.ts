@@ -209,18 +209,25 @@ function tabelaVendedores(
 function cabecalho(doc: JsPDF, op: Opcoes, total: number) {
   doc.setFillColor(...MARINHO);
   doc.rect(0, 0, A4_W, 30, "F");
+  // Marca da Megamix (wordmark): quadradinho azul com "M" + nome em caixa alta
   doc.setFillColor(...ACO);
   doc.roundedRect(M, 8, 13, 13, 2.5, 2.5, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
   doc.text("M", M + 6.5, 16.6, { align: "center" });
-  doc.setFontSize(16);
-  doc.text(total === 1 ? "Relatório de visita" : "Relatório de visitas", M + 18, 14);
+  doc.setFontSize(17);
+  doc.setCharSpace(0.6);
+  doc.text("MEGAMIX", M + 18, 14.5);
+  doc.setCharSpace(0);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setTextColor(211, 232, 243);
-  doc.text("Megamix · Concreto usinado e bombeado · São Luís-MA", M + 18, 20);
+  doc.text("Concreto usinado e bombeado · São Luís-MA", M + 18, 19.5);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(255, 255, 255);
+  doc.text(limpa(total === 1 ? "Relatório de visita" : "Relatório de visitas"), M + 18, 25);
 
   doc.setFontSize(8.5);
   const gerado = new Date().toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });

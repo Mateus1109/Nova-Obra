@@ -3,7 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 import { ArrowLeft, ArrowRight, Check, MoreHorizontal, MoveRight, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useData, type Card } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
-import { CORES_ETAPA, type Atividade, type Etapa } from "@/lib/types";
+import { CORES_ETAPA, type Etapa } from "@/lib/types";
 import { Button, Field, Input, Modal, Select } from "@/components/ui";
 import { brl, cx } from "@/lib/utils";
 import { KanbanCard } from "./CartaoNegocio";
@@ -17,13 +17,11 @@ export function Coluna({
   arrastavel,
   cards,
   numero,
-  proxAtividade,
   dica,
   onOpen,
   onExcluir,
   onMoverTodos,
   onNovoNegocio,
-  onAtividade,
 }: {
   etapa: Etapa;
   primeira: boolean;
@@ -32,14 +30,12 @@ export function Coluna({
   arrastavel: boolean;
   cards: Card[];
   numero: Map<string, number>;
-  proxAtividade: Map<string, Atividade>;
   /** texto exibido quando a coluna está vazia (ex.: ganhos ocultos pelo filtro de status) */
   dica?: ReactNode;
   onOpen: (id: string) => void;
   onExcluir: () => void;
   onMoverTodos: () => void;
   onNovoNegocio: () => void;
-  onAtividade: (c: Card) => void;
 }) {
   const { atualizarEtapa, moverColuna } = useData();
   const { pode } = useAuth();
@@ -172,10 +168,8 @@ export function Coluna({
             key={c.id}
             card={c}
             numero={numero.get(c.id) ?? 0}
-            atividade={proxAtividade.get(c.id)}
             arrastavel={arrastavel}
             onOpen={onOpen}
-            onAtividade={onAtividade}
           />
         ))}
         {cards.length === 0 && dica && <div className="px-2 py-6 text-center text-[0.8125rem] text-slate-400">{dica}</div>}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { Building2, Plus, Search, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { useData } from "@/lib/data";
@@ -116,6 +116,8 @@ export function NovoNegocioModal({
   const [obraId, setObraId] = useState("");
   const [obraNome, setObraNome] = useState("");
   const [obraBairro, setObraBairro] = useState("");
+  const [buscaObra, setBuscaObra] = useState("");
+  const [obraAberta, setObraAberta] = useState(false);
   const [valor, setValor] = useState("");
   const [vendedor, setVendedor] = useState(isAdmin ? "" : profile?.id ?? "");
   const [salvando, setSalvando] = useState(false);
@@ -207,19 +209,62 @@ export function NovoNegocioModal({
                   <Input value={obraBairro} onChange={(e) => setObraBairro(e.target.value)} placeholder="Bairro" />
                 </div>
               )}
-              {obraModo === "existente" && (
-                <Select value={obraId} onChange={(e) => setObraId(e.target.value)}>
-                  <option value="">Selecione a obra...</option>
-                  {[...obras]
-                    .sort((a, b) => a.nome_obra.localeCompare(b.nome_obra))
-                    .map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.nome_obra}
-                        {o.bairro ? ` — ${o.bairro}` : ""}
-                      </option>
-                    ))}
-                </Select>
-              )}
+              {obraModo === "existente" &&
+                (obraId ? (
+                  (() => {
+                    const o = obras.find((x) => x.id === obraId);
+                    return (
+                      <div className="flex items-center gap-3 rounded-xl border-2 border-aco-500 bg-aco-50 px-3 py-2.5">
+                        <Building2 size={18} className="flex-shrink-0 text-aco-600" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate font-semibold text-marinho-800">{o?.nome_obra ?? "Obra"}</p>
+                          <p className="truncate text-xs text-slate-500">{[o?.construtora, o?.bairro].filter(Boolean).join(" · ") || "—"}</p>
+                        </div>
+                        <button type="button" onClick={() => { setObraId(""); setBuscaObra(""); }} className="text-sm font-semibold text-aco-600">
+                          Trocar
+                        </button>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <Input
+                      value={buscaObra}
+                      onChange={(e) => { setBuscaObra(e.target.value); setObraAberta(true); }}
+                      onFocus={() => setObraAberta(true)}
+                      onBlur={() => setTimeout(() => setObraAberta(false), 150)}
+                      placeholder="Pesquisar obra, construtora ou bairro..."
+                      className="pl-9"
+                    />
+                    {obraAberta && (
+                      <div className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-cardhover">
+                        {/* obras vêm do contexto já ordenadas da mais recente para a mais antiga */}
+                        {obras
+                          .filter((o) => !buscaObra || `${o.nome_obra} ${o.construtora} ${o.bairro}`.toLowerCase().includes(buscaObra.toLowerCase()))
+                          .slice(0, 8)
+                          .map((o) => (
+                            <button
+                              key={o.id}
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => { setObraId(o.id); setObraAberta(false); }}
+                              className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-slate-50"
+                            >
+                              <Building2 size={15} className="flex-shrink-0 text-slate-400" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium text-marinho-800">{o.nome_obra}</span>
+                                <span className="block truncate text-xs text-slate-500">{[o.construtora, o.bairro].filter(Boolean).join(" · ")}</span>
+                              </span>
+                            </button>
+                          ))}
+                        {obras.filter((o) => !buscaObra || `${o.nome_obra} ${o.construtora} ${o.bairro}`.toLowerCase().includes(buscaObra.toLowerCase())).length === 0 && (
+                          <p className="px-3 py-3 text-center text-sm text-slate-400">Nenhuma obra encontrada.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -253,9 +298,12 @@ export function NovoNegocioModal({
                 <Field label="Atendente responsável">
                   <Select value={vendedor} onChange={(e) => setVendedor(e.target.value)}>
                     <option value="">Sem atendente</option>
-                    {vendedores.map((v) => (
-                      <option key={v.id} value={v.id}>{v.nome}</option>
-                    ))}
+                    {profile && <option value={profile.id}>{profile.nome} (eu)</option>}
+                    {vendedores
+                      .filter((v) => v.id !== profile?.id)
+                      .map((v) => (
+                        <option key={v.id} value={v.id}>{v.nome}</option>
+                      ))}
                   </Select>
                 </Field>
               )}

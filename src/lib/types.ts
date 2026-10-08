@@ -30,8 +30,7 @@ export type RequisitoEtapa =
   | "obra"
   | "previsao_fechamento"
   | "telefone_lead"
-  | "fase_obra"
-  | "atividade_pendente";
+  | "fase_obra";
 
 export const REQUISITOS_ETAPA: { key: RequisitoEtapa; label: string; desc: string }[] = [
   { key: "valor", label: "Valor estimado preenchido", desc: "O negócio precisa ter valor maior que zero" },
@@ -40,7 +39,6 @@ export const REQUISITOS_ETAPA: { key: RequisitoEtapa; label: string; desc: strin
   { key: "previsao_fechamento", label: "Previsão de fechamento", desc: "Data prevista para fechar preenchida" },
   { key: "telefone_lead", label: "Telefone do lead", desc: "O lead precisa ter telefone/WhatsApp" },
   { key: "fase_obra", label: "Fase da obra", desc: "A fase da obra precisa estar informada" },
-  { key: "atividade_pendente", label: "Próxima atividade agendada", desc: "Precisa haver uma atividade em aberto" },
 ];
 
 export interface Pipeline {
@@ -281,6 +279,8 @@ export interface Obra {
   pavimentos: number | null;
   area_m2: number | null;
   fornecedor_atual: string;
+  /** link do Google Maps ou Waze colado pelo usuário (tem prioridade no botão Rota) */
+  maps_url: string | null;
   criado_por: string;
   criado_em: string;
 }

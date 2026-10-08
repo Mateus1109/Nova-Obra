@@ -77,7 +77,7 @@ const ACOES: Record<
  * vários negócios de uma vez, com busca e filtros por coluna e status.
  */
 export function AcoesEmMassa({ acao, pipeline, onClose }: { acao: AcaoMassa; pipeline: Pipeline; onClose: () => void }) {
-  const { cards, etapas, pipelines, atividades, moverNegocios, ganharNegocios, restaurarStatus, excluirNegocios } = useData();
+  const { cards, etapas, pipelines, moverNegocios, ganharNegocios, restaurarStatus, excluirNegocios } = useData();
   const { isAdmin } = useAuth();
   const cfg = ACOES[acao];
 
@@ -120,7 +120,7 @@ export function AcoesEmMassa({ acao, pipeline, onClose }: { acao: AcaoMassa; pip
   // Mover: destino e condições de saída da etapa atual
   const colunasDestino = etapas.filter((e) => e.pipeline_id === destPipe);
   const destino = etapaPorId.get(destEtapa);
-  const bloqueados = acao === "mover" ? selecionados.filter((c) => c.etapa_id !== destEtapa && faltandoParaSair(c, etapaPorId.get(c.etapa_id), atividades).length > 0) : [];
+  const bloqueados = acao === "mover" ? selecionados.filter((c) => c.etapa_id !== destEtapa && faltandoParaSair(c, etapaPorId.get(c.etapa_id)).length > 0) : [];
   // o administrador pode mover mesmo assim; os demais só levam quem cumpre as condições
   const aMover = acao === "mover" ? selecionados.filter((c) => c.etapa_id !== destEtapa && (isAdmin || !bloqueados.includes(c))) : selecionados;
   const qtd = aMover.length;

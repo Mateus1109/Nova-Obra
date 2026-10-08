@@ -22,7 +22,6 @@ import type { Etapa, Pipeline, StatusNegocio } from "@/lib/types";
 import { Button, Field, Input, Select, Spinner } from "@/components/ui";
 import PainelLead from "@/components/PainelLead";
 import { NovoNegocioModal } from "@/components/NovoNegocio";
-import { NovaAtividadeModal } from "@/components/Atividades";
 import { ConfirmarModal, PerderModal } from "@/components/StatusNegocio";
 import { BotaoTopo, Chip, ItemMenu, Pop, qtdNegocios, statusDe } from "@/components/pipeline/pecas";
 import { CartaoNegocio } from "@/components/pipeline/CartaoNegocio";
@@ -107,7 +106,7 @@ function SemPipeline() {
 }
 
 function Quadro({ pipeline }: { pipeline: Pipeline }) {
-  const { cards, etapas, vendedores, atividades, moverEtapa, ganharNegocios, excluirNegocios, avisar } = useData();
+  const { cards, etapas, vendedores, moverEtapa, ganharNegocios, excluirNegocios, avisar } = useData();
   const { isAdmin, pode } = useAuth();
   const podeMover = pode("mover_funil");
   const podeExcluir = pode("excluir_obras") && podeMover;
@@ -133,7 +132,6 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
 
   const [painel, setPainel] = useState<string | null>(null);
   const [novoNegocio, setNovoNegocio] = useState<string | null>(null);
-  const [atividadePara, setAtividadePara] = useState<TCard | null>(null);
   const [excluindoColuna, setExcluindoColuna] = useState<Etapa | null>(null);
   const [movendoTodos, setMovendoTodos] = useState<Etapa | null>(null);
   const [modal, setModal] = useState<ModalPipeline | null>(null);
@@ -159,12 +157,6 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
     [...cards].sort((a, b) => a.criado_em.localeCompare(b.criado_em)).forEach((c, i) => m.set(c.id, i + 1));
     return m;
   }, [cards]);
-
-  const proxAtividade = useMemo(() => {
-    const m = new Map<string, (typeof atividades)[number]>();
-    for (const a of atividades) if (a.oportunidade_id && !m.has(a.oportunidade_id)) m.set(a.oportunidade_id, a);
-    return m;
-  }, [atividades]);
 
   const todasTags = useMemo(() => Array.from(new Set(cards.flatMap((c) => c.tags ?? []))).sort(), [cards]);
 
@@ -217,7 +209,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
     const destino = etapaPorId.get(etapaId);
     if (!podeMover || !destino || card.etapa_id === etapaId) return;
     const atual = etapaPorId.get(card.etapa_id);
-    const falta = faltandoParaSair(card, atual, atividades);
+    const falta = faltandoParaSair(card, atual);
     if (falta.length && atual) return setFaltando({ card, etapa: atual, falta });
     if (destino.tipo === "ganho" && statusDe(card) !== "ganho") {
       moverEtapa(card.id, etapaId, { status: "ganho", status_em: new Date().toISOString(), motivo_perda_id: null });
@@ -422,13 +414,11 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
                 arrastavel={podeMover}
                 cards={filtrados.filter((c) => c.etapa_id === et.id)}
                 numero={numero}
-                proxAtividade={proxAtividade}
                 dica={dicaColuna(et)}
                 onOpen={setPainel}
                 onExcluir={() => setExcluindoColuna(et)}
                 onMoverTodos={() => setMovendoTodos(et)}
                 onNovoNegocio={() => setNovoNegocio(et.id)}
-                onAtividade={setAtividadePara}
               />
             ))}
             {isAdmin && <NovaColuna pipelineId={pipeline.id} />}
@@ -437,7 +427,7 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
             {cardArrastado && (
               // menor enquanto arrasta, para não cobrir a barra Ganhar / Perder / Excluir
               <div className="w-[min(19.75rem,78vw)] origin-center scale-[0.6] opacity-95 sm:scale-75">
-                <CartaoNegocio card={cardArrastado} numero={numero.get(cardArrastado.id) ?? 0} atividade={proxAtividade.get(cardArrastado.id)} sobreposto />
+                <CartaoNegocio card={cardArrastado} numero={numero.get(cardArrastado.id) ?? 0} sobreposto />
               </div>
             )}
           </DragOverlay>
@@ -455,10 +445,6 @@ function Quadro({ pipeline }: { pipeline: Pipeline }) {
           onCriado={(id) => setPainel(id)}
         />
       )}
-      {atividadePara && (
-        <NovaAtividadeModal oportunidadeId={atividadePara.id} leadId={atividadePara.lead_id} onClose={() => setAtividadePara(null)} />
-      )}
-
       {perder && (
         <PerderModal
           ids={[perder.card.id]}

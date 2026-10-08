@@ -135,7 +135,13 @@ export default function Layout({ children }: { children: ReactNode }) {
       {/* Topo mobile */}
       <header className="no-print fixed inset-x-0 top-0 z-30 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2.5 lg:hidden">
         <Logo />
-        {noPipeline ? <SeletorPipelineMobile /> : <span className="flex-1 truncate font-semibold text-marinho-800">Megamix · Nova Obra</span>}
+        {noPipeline ? (
+          <SeletorPipelineMobile />
+        ) : (
+          <span className="flex-1 truncate font-semibold text-marinho-800">
+            <span className="font-black tracking-wide">MEGAMIX</span> <span className="font-medium text-slate-400">· Nova Obra</span>
+          </span>
+        )}
         <div className="flex items-center gap-1">
           <button onClick={() => setSenhaAberta(true)} className="grid h-9 w-9 place-items-center text-slate-600" aria-label="Alterar senha">
             <KeyRound size={18} />

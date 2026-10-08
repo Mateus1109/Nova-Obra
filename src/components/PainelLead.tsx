@@ -4,7 +4,6 @@ import {
   X,
   User,
   Briefcase,
-  Activity,
   History,
   Users,
   MapPin,
@@ -36,21 +35,19 @@ import { faltandoParaSair } from "@/lib/requisitos";
 import { Avatar, Button, CampoEditavel, Select, SeloTipo, Tag } from "./ui";
 import { CampoTags, NovoLeadModal } from "./NovoLead";
 import { BuscaLead, NovoNegocioModal } from "./NovoNegocio";
-import { ListaAtividades } from "./Atividades";
 import { ListaArquivos } from "./Arquivos";
 import { ListaVisitas, SecaoObra } from "./SecaoObra";
 import { ConfirmarModal, PerderModal, SeloStatus } from "./StatusNegocio";
 import type { CampoAdicional, Historico, Lead, RelatorioVisita, ValoresCampos } from "@/lib/types";
-import { brl, corAvatar, cx, dataBR, linkWhatsApp, mapsLink } from "@/lib/utils";
+import { brl, corAvatar, cx, dataBR, linkWhatsApp, mapsLink, rotaObra } from "@/lib/utils";
 
-type Secao = "perfil" | "negocio" | "campos" | "negocios" | "atividades" | "arquivos" | "visitas" | "historico" | "pessoas" | "endereco";
+type Secao = "perfil" | "negocio" | "campos" | "negocios" | "arquivos" | "visitas" | "historico" | "pessoas" | "endereco";
 
 const ITENS: { key: Secao; label: string; icon: typeof User }[] = [
   { key: "perfil", label: "Perfil", icon: User },
   { key: "negocio", label: "Negócio e obra", icon: HardHat },
   { key: "campos", label: "Campos adicionais", icon: LayoutGrid },
   { key: "negocios", label: "Negócios", icon: Briefcase },
-  { key: "atividades", label: "Atividades", icon: Activity },
   { key: "arquivos", label: "Arquivos", icon: Paperclip },
   { key: "visitas", label: "Visitas", icon: ClipboardList },
   { key: "historico", label: "Históricos", icon: History },
@@ -76,7 +73,6 @@ export default function PainelLead({
     etapas,
     pipelines,
     vendedores,
-    atividades,
     corTag,
     atualizarLead,
     atualizarOportunidade,
@@ -84,7 +80,7 @@ export default function PainelLead({
     moverEtapa,
     recarregar,
   } = useData();
-  const { isAdmin, pode } = useAuth();
+  const { isAdmin, pode, profile } = useAuth();
   const podeMover = pode("mover_funil");
   const [cardAtivoId, setCardAtivoId] = useState<string | null>(cardId ?? null);
   const [leadAtualId, setLeadAtualId] = useState<string | null>(leadId ?? null);
@@ -127,7 +123,7 @@ export default function PainelLead({
     if (onMudarEtapa) return onMudarEtapa(card, etapaId);
     // fora do funil (ex.: página Leads) as condições da etapa são conferidas aqui
     const atual = etapas.find((e) => e.id === card.etapa_id);
-    const falta = faltandoParaSair(card, atual, atividades);
+    const falta = faltandoParaSair(card, atual);
     if (falta.length) return setFaltando({ etapa: atual?.nome ?? "", itens: falta });
     moverEtapa(card.id, etapaId);
   };
@@ -264,16 +260,22 @@ export default function PainelLead({
               {card ? (
                 <Select value={card.vendedor_id ?? ""} disabled={!isAdmin} onChange={(e) => setResponsavel(card.id, e.target.value || null)}>
                   <option value="">+ Atribuir atendente</option>
-                  {vendedores.map((v) => (
-                    <option key={v.id} value={v.id}>{v.nome}</option>
-                  ))}
+                  {profile && <option value={profile.id}>{profile.nome} (eu)</option>}
+                  {vendedores
+                    .filter((v) => v.id !== profile?.id)
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>{v.nome}</option>
+                    ))}
                 </Select>
               ) : (
                 <Select value={lead?.responsavel_id ?? ""} disabled={!isAdmin || !lead} onChange={(e) => salvarLead({ responsavel_id: e.target.value || null })}>
                   <option value="">+ Atribuir atendente</option>
-                  {vendedores.map((v) => (
-                    <option key={v.id} value={v.id}>{v.nome}</option>
-                  ))}
+                  {profile && <option value={profile.id}>{profile.nome} (eu)</option>}
+                  {vendedores
+                    .filter((v) => v.id !== profile?.id)
+                    .map((v) => (
+                      <option key={v.id} value={v.id}>{v.nome}</option>
+                    ))}
                 </Select>
               )}
             </div>
@@ -344,13 +346,6 @@ export default function PainelLead({
                 irPara("negocio");
               }}
             />
-          )}
-          {secaoAtual === "atividades" && (
-            <Bloco titulo="Atividades">
-              <div className="p-5">
-                <ListaAtividades oportunidadeIds={card ? [card.id, ...negocios.filter((n) => n.id !== card.id).map((n) => n.id)] : negocios.map((n) => n.id)} leadId={lead?.id ?? null} />
-              </div>
-            </Bloco>
           )}
           {secaoAtual === "arquivos" && (
             <Bloco titulo="Arquivos">
@@ -1059,6 +1054,9 @@ function SecaoPessoas({ lead, onAbrir }: { lead: Lead; onAbrir: (id: string) => 
 
 function SecaoEndereco({ lead, card, onSalvar }: { lead: Lead | null; card: Card | null; onSalvar: (p: Partial<Lead>) => void }) {
   const o = card?.obra;
+  const { atualizarObra } = useData();
+  const { pode } = useAuth();
+  const podeMover = pode("mover_funil");
   return (
     <>
       {lead && (
@@ -1092,14 +1090,24 @@ function SecaoEndereco({ lead, card, onSalvar }: { lead: Lead | null; card: Card
       )}
       {o && (
         <Bloco titulo="Endereço da obra">
-          <div className="flex items-center justify-between gap-3 p-5">
-            <div>
-              <p className="font-medium text-marinho-800">{o.nome_obra}</p>
-              <p className="text-sm text-slate-500">{[o.endereco, o.bairro, o.cidade].filter(Boolean).join(" · ") || "Sem endereço"}</p>
+          <div className="space-y-4 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-medium text-marinho-800">{o.nome_obra}</p>
+                <p className="text-sm text-slate-500">{[o.endereco, o.bairro, o.cidade].filter(Boolean).join(" · ") || "Sem endereço"}</p>
+              </div>
+              <a href={rotaObra(o)} target="_blank" rel="noreferrer" className="flex-shrink-0">
+                <Button variant="secondary"><Navigation size={15} /> Rota</Button>
+              </a>
             </div>
-            <a href={mapsLink(o.latitude, o.longitude, o.endereco || o.bairro)} target="_blank" rel="noreferrer">
-              <Button variant="secondary"><Navigation size={15} /> Rota</Button>
-            </a>
+            <CampoEditavel
+              podeEditar={podeMover}
+              label="Link do mapa (Google Maps / Waze)"
+              valor={o.maps_url}
+              tipo="url"
+              link={o.maps_url || null}
+              onSalvar={(v) => atualizarObra(o.id, { maps_url: v || null })}
+            />
           </div>
         </Bloco>
       )}

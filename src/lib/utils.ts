@@ -43,6 +43,10 @@ export const diasDesde = (iso: string | null | undefined) => {
   return Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
 };
 
+// Link de rota da obra: o link colado (Google Maps/Waze) tem prioridade sobre as coordenadas
+export const rotaObra = (o: { maps_url?: string | null; latitude?: number | null; longitude?: number | null; endereco?: string | null; bairro?: string | null }) =>
+  (o.maps_url && o.maps_url.trim()) || mapsLink(o.latitude, o.longitude, o.endereco || o.bairro || "");
+
 export const mapsLink = (lat?: number | null, lng?: number | null, fallback?: string) => {
   if (lat != null && lng != null)
     return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;

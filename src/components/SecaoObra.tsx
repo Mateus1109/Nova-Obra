@@ -19,7 +19,7 @@ import {
   type RelatorioVisita,
   type StatusObra,
 } from "@/lib/types";
-import { dataBR, linkWhatsApp, mapsLink } from "@/lib/utils";
+import { dataBR, linkWhatsApp, rotaObra } from "@/lib/utils";
 
 const OPCOES_FASE = FASE_OBRA.map((f) => ({ valor: f.key, rotulo: f.label }));
 const OPCOES_SITUACAO = (Object.keys(STATUS_OBRA_LABEL) as StatusObra[]).map((k) => ({ valor: k, rotulo: STATUS_OBRA_LABEL[k] }));
@@ -49,7 +49,7 @@ export function SecaoObra({ obra: o }: { card: TCard; obra: Obra }) {
     <div>
       {/* Ações rápidas */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <a href={mapsLink(o.latitude, o.longitude, o.endereco || o.bairro)} target="_blank" rel="noreferrer">
+        <a href={rotaObra(o)} target="_blank" rel="noreferrer">
           <Button variant="secondary" className="w-full"><Navigation size={16} /> Rota</Button>
         </a>
         {wa ? (
@@ -145,6 +145,16 @@ export function SecaoObra({ obra: o }: { card: TCard; obra: Obra }) {
         <CampoEditavel {...campo} label="Bairro" valor={o.bairro} onSalvar={(v) => salvar({ bairro: v })} />
         <div className="col-span-2 sm:col-span-1">
           <CampoEditavel {...campo} label="Endereço" valor={o.endereco} onSalvar={(v) => salvar({ endereco: v })} />
+        </div>
+        <div className="col-span-2">
+          <CampoEditavel
+            {...campo}
+            label="Link do mapa (Google Maps / Waze)"
+            valor={o.maps_url}
+            tipo="url"
+            link={o.maps_url || null}
+            onSalvar={(v) => salvar({ maps_url: v || null })}
+          />
         </div>
         <div className="col-span-2 sm:col-span-1">
           <CampoEditavel {...campo} label="Contato na obra" valor={o.contato_nome} onSalvar={(v) => salvar({ contato_nome: v })} />

@@ -47,7 +47,7 @@ import { comprimirImagem, cx, dataBR, hojeISO, isoLocal, mapsLink } from "@/lib/
 const BUCKET = BUCKET_FOTOS;
 const MAX_FOTOS = 10;
 
-const ROTULO_PERIODO = { "7": "Últimos 7 dias", "30": "Últimos 30 dias", mes: "Este mês", todos: "Todo o período" };
+const ROTULO_PERIODO = { hoje: "Hoje", "7": "Últimos 7 dias", "30": "Últimos 30 dias", mes: "Este mês", todos: "Todo o período" };
 
 // "Novo cliente" fica só para relatórios antigos; o vendedor escolhe entre estes dois
 const TIPOS_VISITA: TipoRelatorio[] = ["cliente", "aquisicao"];
@@ -76,7 +76,7 @@ async function enderecoDoGps(lat: number, lng: number): Promise<{ endereco: stri
 
 /* ---------- Página ---------- */
 
-type Periodo = "7" | "30" | "mes" | "todos";
+type Periodo = "hoje" | "7" | "30" | "mes" | "todos";
 
 export default function Relatorios() {
   const { profile, isAdmin: ehAdmin, pode } = useAuth();
@@ -92,7 +92,7 @@ export default function Relatorios() {
   const [detalheId, setDetalheId] = useState<string | null>(null);
   const [limite, setLimite] = useState(30);
 
-  const [periodo, setPeriodo] = useState<Periodo>("30");
+  const [periodo, setPeriodo] = useState<Periodo>("hoje");
   const [fVendedor, setFVendedor] = useState("");
   const [fTipo, setFTipo] = useState("");
   const [fResultado, setFResultado] = useState("");
@@ -131,7 +131,8 @@ export default function Relatorios() {
 
   const desde = useMemo(() => {
     const d = new Date();
-    if (periodo === "7") d.setDate(d.getDate() - 6);
+    if (periodo === "hoje") { /* só hoje */ }
+    else if (periodo === "7") d.setDate(d.getDate() - 6);
     else if (periodo === "30") d.setDate(d.getDate() - 29);
     else if (periodo === "mes") d.setDate(1);
     else return "";
@@ -261,6 +262,7 @@ export default function Relatorios() {
           />
         </div>
         <Select value={periodo} onChange={(e) => setPeriodo(e.target.value as Periodo)}>
+          <option value="hoje">Hoje</option>
           <option value="7">Últimos 7 dias</option>
           <option value="30">Últimos 30 dias</option>
           <option value="mes">Este mês</option>
@@ -498,6 +500,7 @@ function NovoRelatorio({
   const [lugar, setLugar] = useState<{ endereco: string; bairro: string } | null>(null);
   const [fase, setFase] = useState<FaseObra | "">(obraInicial?.fase_obra ?? "");
   const [resultado, setResultado] = useState<ResultadoVisita>("em_negociacao");
+  const [dataVisita, setDataVisita] = useState(hojeISO());
   const interesse: Classificacao = "morno"; // campo mantido no banco, não é mais perguntado
   const [noFunil, setNoFunil] = useState(true);
   const [mais, setMais] = useState(false);
@@ -516,9 +519,11 @@ function NovoRelatorio({
     [obras]
   );
 
-  // Localização capturada sozinha ao abrir (comprova que o vendedor esteve na obra)
-  useEffect(() => {
+  // Captura a localização do celular (comprova que o vendedor esteve na obra).
+  // Roda sozinha ao abrir e também quando o vendedor toca em "Usar minha localização".
+  const capturarLocalizacao = useCallback(() => {
     if (!navigator.geolocation) return setGps("erro");
+    setGps("buscando");
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const c = { lat: Number(pos.coords.latitude.toFixed(6)), lng: Number(pos.coords.longitude.toFixed(6)) };
@@ -530,6 +535,9 @@ function NovoRelatorio({
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
     );
   }, []);
+  useEffect(() => {
+    capturarLocalizacao();
+  }, [capturarLocalizacao]);
 
   useEffect(() => () => fotos.forEach((x) => URL.revokeObjectURL(x.preview)), []); // eslint-disable-line
 
@@ -634,7 +642,7 @@ function NovoRelatorio({
         endereco: lugar?.endereco || ref?.endereco || "",
         latitude: coords?.lat ?? ref?.latitude ?? null,
         longitude: coords?.lng ?? ref?.longitude ?? null,
-        data_visita: hojeISO(),
+        data_visita: dataVisita || hojeISO(),
         hora_inicio: new Date().toTimeString().slice(0, 5),
         resultado,
         interesse,
@@ -868,7 +876,21 @@ function NovoRelatorio({
             {gps === "buscando" && "Pegando localização..."}
             {gps === "erro" && "Sem localização (permita o GPS no navegador)"}
           </p>
+          {gps !== "buscando" && (
+            <button
+              type="button"
+              onClick={capturarLocalizacao}
+              className="flex items-center gap-1.5 text-xs font-semibold text-aco-600 hover:underline"
+            >
+              <LocateFixed size={13} /> {gps === "ok" ? "Atualizar minha localização" : "Usar minha localização"}
+            </button>
+          )}
         </div>
+
+        {/* Data da visita */}
+        <Field label="Data da visita">
+          <Input type="date" value={dataVisita} max={hojeISO()} onChange={(e) => setDataVisita(e.target.value)} />
+        </Field>
 
         {/* Fase */}
         <div>
