@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { useData, type Card as TCard } from "@/lib/data";
 import { useUrls } from "@/lib/fotos";
 import { Badge, Button, CampoEditavel } from "./ui";
+import { WhatsAppModal } from "./WhatsAppModal";
 import {
   FASE_LABEL,
   FASE_OBRA,
@@ -19,7 +20,7 @@ import {
   type RelatorioVisita,
   type StatusObra,
 } from "@/lib/types";
-import { dataBR, linkWhatsApp, rotaObra } from "@/lib/utils";
+import { dataBR, rotaObra } from "@/lib/utils";
 
 const OPCOES_FASE = FASE_OBRA.map((f) => ({ valor: f.key, rotulo: f.label }));
 const OPCOES_SITUACAO = (Object.keys(STATUS_OBRA_LABEL) as StatusObra[]).map((k) => ({ valor: k, rotulo: STATUS_OBRA_LABEL[k] }));
@@ -41,7 +42,7 @@ export function SecaoObra({ obra: o }: { card: TCard; obra: Obra }) {
   const podeEditar = pode("mover_funil");
   const { atualizarObra } = useData();
   const historico = useVisitasDaObra(o.id);
-  const wa = linkWhatsApp(o.contato_telefone);
+  const [waAberto, setWaAberto] = useState(false);
   const salvar = (patch: Partial<Obra>) => atualizarObra(o.id, patch);
   const campo = { podeEditar };
 
@@ -52,13 +53,9 @@ export function SecaoObra({ obra: o }: { card: TCard; obra: Obra }) {
         <a href={rotaObra(o)} target="_blank" rel="noreferrer">
           <Button variant="secondary" className="w-full"><Navigation size={16} /> Rota</Button>
         </a>
-        {wa ? (
-          <a href={wa} target="_blank" rel="noreferrer">
-            <Button variant="secondary" className="w-full"><MessageCircle size={16} /> WhatsApp</Button>
-          </a>
-        ) : (
-          <Button variant="secondary" className="w-full" disabled><MessageCircle size={16} /> WhatsApp</Button>
-        )}
+        <Button variant="secondary" className="w-full" disabled={!o.contato_telefone} onClick={() => setWaAberto(true)}>
+          <MessageCircle size={16} /> WhatsApp
+        </Button>
         {o.contato_telefone ? (
           <a href={`tel:${o.contato_telefone.replace(/\s/g, "")}`}>
             <Button variant="secondary" className="w-full"><Phone size={16} /> Ligar</Button>
@@ -170,6 +167,9 @@ export function SecaoObra({ obra: o }: { card: TCard; obra: Obra }) {
         Visitas nesta obra {historico && historico.length > 0 && `(${historico.length})`}
       </h4>
       <ListaVisitas historico={historico} />
+      {waAberto && (
+        <WhatsAppModal telefone={o.contato_telefone} nome={o.contato_nome || o.nome_obra} onClose={() => setWaAberto(false)} />
+      )}
     </div>
   );
 }

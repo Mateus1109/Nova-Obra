@@ -36,6 +36,7 @@ import { Avatar, Button, CampoEditavel, Select, SeloTipo, Tag } from "./ui";
 import { CampoTags, NovoLeadModal } from "./NovoLead";
 import { BuscaLead, NovoNegocioModal } from "./NovoNegocio";
 import { ListaArquivos } from "./Arquivos";
+import { WhatsAppModal } from "./WhatsAppModal";
 import { ListaVisitas, SecaoObra } from "./SecaoObra";
 import { ConfirmarModal, PerderModal, SeloStatus } from "./StatusNegocio";
 import type { CampoAdicional, Historico, Lead, RelatorioVisita, ValoresCampos } from "@/lib/types";
@@ -89,6 +90,7 @@ export default function PainelLead({
   const negocios = useMemo(() => (lead ? cards.filter((c) => c.lead_id === lead.id) : card ? [card] : []), [cards, lead, card]);
   const [secao, setSecao] = useState<Secao>(cardId ? "negocio" : "perfil");
   const [editTags, setEditTags] = useState(false);
+  const [waModal, setWaModal] = useState<{ telefone: string; nome: string } | null>(null);
   /** condições que faltam para o negócio sair da etapa atual (aviso abaixo da etapa) */
   const [faltando, setFaltando] = useState<{ etapa: string; itens: string[] } | null>(null);
   const rolagem = useRef<HTMLDivElement>(null);
@@ -235,10 +237,14 @@ export default function PainelLead({
             {/* Contato rápido */}
             {lead && (lead.telefone || lead.email) && (
               <div className="mt-4 flex gap-2">
-                {wa && (
-                  <a href={wa} target="_blank" rel="noreferrer" className="grid h-9 w-9 place-items-center rounded-full bg-green-50 text-green-600 hover:bg-green-100" title="WhatsApp">
+                {lead?.telefone && (
+                  <button
+                    onClick={() => setWaModal({ telefone: lead.telefone, nome: lead.nome_exibicao || lead.nome })}
+                    className="grid h-9 w-9 place-items-center rounded-full bg-green-50 text-green-600 hover:bg-green-100"
+                    title="WhatsApp"
+                  >
                     <MessageCircle size={17} />
-                  </a>
+                  </button>
                 )}
                 {lead.telefone && (
                   <a href={`tel:${lead.telefone.replace(/\s/g, "")}`} className="grid h-9 w-9 place-items-center rounded-full bg-aco-50 text-aco-600 hover:bg-aco-100" title="Ligar">
@@ -366,6 +372,9 @@ export default function PainelLead({
           )}
         </div>
       </div>
+      {waModal && (
+        <WhatsAppModal telefone={waModal.telefone} nome={waModal.nome} onClose={() => setWaModal(null)} />
+      )}
     </div>
   );
 }
