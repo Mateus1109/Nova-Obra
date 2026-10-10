@@ -4,9 +4,9 @@ import { supabase } from "./supabase";
  * Envia uma mensagem de WhatsApp pelo gateway (Edge Function enviar-whatsapp).
  * A URL e a chave do gateway ficam no servidor; o navegador só manda telefone e texto.
  */
-export async function enviarWhatsApp(p: { telefone?: string | null; jid?: string | null; mensagem: string }): Promise<{ ok: boolean; error?: string }> {
+export async function enviarWhatsApp(p: { telefone?: string | null; chatId?: string | null; mensagem: string }): Promise<{ ok: boolean; error?: string }> {
   const { data, error } = await supabase.functions.invoke("enviar-whatsapp", {
-    body: { telefone: p.telefone ?? undefined, jid: p.jid ?? undefined, mensagem: p.mensagem },
+    body: { telefone: p.telefone ?? undefined, chatId: p.chatId ?? undefined, mensagem: p.mensagem },
   });
   if (error) {
     // a Edge Function devolve a mensagem de erro no corpo, mesmo com status != 2xx
