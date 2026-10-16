@@ -25,11 +25,12 @@ function soNumero(telefone: string): string | null {
   return d.length <= 11 ? "55" + d : d;
 }
 
-async function viaOpenWA(numero: string, mensagem: string): Promise<{ ok: boolean; status: number; dados: unknown; faltaConfig?: boolean }> {
-  let base = (Deno.env.get("OPENWA_URL") ?? "").trim().replace(/\/+$/, "");
+async function viaOpenWA(seg: Map<string, string>, numero: string, mensagem: string): Promise<{ ok: boolean; status: number; dados: unknown; faltaConfig?: boolean }> {
+  // configurado na tela Configurações → WhatsApp; os segredos do Supabase ficam como reserva
+  let base = (seg.get("openwa_url") || Deno.env.get("OPENWA_URL") || "").trim().replace(/\/+$/, "");
   if (base.endsWith("/api")) base = base.slice(0, -4);
-  const apiKey = (Deno.env.get("OPENWA_KEY") ?? "").trim();
-  const session = (Deno.env.get("OPENWA_SESSION") ?? "").trim();
+  const apiKey = (seg.get("openwa_key") || Deno.env.get("OPENWA_KEY") || "").trim();
+  const session = (seg.get("openwa_sessao") || Deno.env.get("OPENWA_SESSION") || "").trim();
   if (!base || !apiKey || !session) return { ok: false, status: 503, dados: null, faltaConfig: true };
   const resp = await fetch(`${base}/api/sessions/${encodeURIComponent(session)}/messages/send-text`, {
     method: "POST",
@@ -83,11 +84,13 @@ Deno.serve(async (req) => {
   const { data: cfg } = await admin.from("config").select("valor").eq("chave", "whatsapp_provedor").single();
   const provedor = ((Deno.env.get("WHATSAPP_PROVEDOR") ?? cfg?.valor ?? "openwa") as string).trim().toLowerCase();
 
-  const r = provedor === "oficial" ? await viaOficial(numero, mensagem) : await viaOpenWA(numero, mensagem);
+  const { data: segs } = await admin.from("integracoes_segredos").select("chave, valor");
+  const seg = new Map((segs ?? []).map((x: { chave: string; valor: string }) => [x.chave, x.valor ?? ""]));
+  const r = provedor === "oficial" ? await viaOficial(numero, mensagem) : await viaOpenWA(seg, numero, mensagem);
   if (r.faltaConfig)
     return json({ error: provedor === "oficial"
       ? "WhatsApp oficial ainda não configurado. Defina WHATSAPP_TOKEN e WHATSAPP_PHONE_NUMBER_ID."
-      : "OpenWA ainda não configurado. Defina OPENWA_URL, OPENWA_KEY e OPENWA_SESSION." }, 503);
+      : "OpenWA ainda não conectado. Vá em Configurações → WhatsApp, informe a URL e a chave e conecte o número." }, 503);
   if (!r.ok) return json({ error: `O provedor (${provedor}) recusou (${r.status}).`, detalhe: r.dados }, 502);
   return json({ ok: true, provedor, resposta: r.dados });
 });

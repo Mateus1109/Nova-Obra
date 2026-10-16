@@ -40,10 +40,20 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ error: "Método não permitido" }, 405);
 
   const raw = await req.text();
+  const url = Deno.env.get("SUPABASE_URL")!;
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
 
-  // Assinatura (quando configurada)
+  // Token na URL (webhook cadastrado pelo próprio CRM em Configurações → WhatsApp)
+  const { data: tk } = await admin.from("integracoes_segredos").select("valor").eq("chave", "openwa_webhook_token").maybeSingle();
+  const tokenEsperado = (tk?.valor ?? "").trim();
+  const tokenUrl = new URL(req.url).searchParams.get("token") ?? "";
+  const tokenOk = !!tokenEsperado && tokenUrl === tokenEsperado;
+
+  // Assinatura HMAC (quando configurada); dispensada se o token da URL conferir
   const segredo = (Deno.env.get("OPENWA_WEBHOOK_SECRET") ?? "").trim();
-  if (segredo) {
+  if (tokenEsperado && !tokenOk && !segredo) return json({ error: "Token inválido." }, 401);
+  if (segredo && !tokenOk) {
     const header =
       req.headers.get("x-webhook-signature") ||
       req.headers.get("x-signature") ||
@@ -86,9 +96,6 @@ Deno.serve(async (req) => {
   const waId = str(pega(d, ["id", "messageId", "key.id", "msgId"])) || null;
   const conexao = str(pega(corpo, ["sessionId", "session", "data.sessionId", "instance"]));
 
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
   const { data, error } = await admin.rpc("registrar_msg_recebida", {
     p_telefone: telefone,
     p_nome: nome,

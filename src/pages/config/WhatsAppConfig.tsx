@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { cx } from "@/lib/utils";
 import { CabecalhoSecao } from "./comum";
+import { ConexaoOpenWA } from "@/components/ConexaoOpenWA";
 
 type Provedor = "openwa" | "oficial";
 
@@ -15,7 +16,7 @@ const OPCOES: { valor: Provedor; titulo: string; tag: string; Icone: typeof Shie
     Icone: ShieldAlert,
     desc: "Gateway OpenWA rodando num servidor seu, conectado por QR code. Grátis e sem regras de template, mas é não oficial — há risco de o número ser banido. Use um número dedicado.",
     pros: ["Envia para qualquer número, sem janela de 24h", "Grátis (você hospeda)", "Risco de ban (número não oficial)"],
-    segredos: "OPENWA_URL, OPENWA_KEY, OPENWA_SESSION",
+    segredos: "URL e chave informadas abaixo, na própria tela",
   },
   {
     valor: "oficial",
@@ -91,7 +92,8 @@ export default function WhatsAppConfig() {
                 ))}
               </ul>
               <p className="mt-1 rounded-md bg-slate-50 px-2 py-1 text-[0.6875rem] text-slate-500">
-                Segredos no Supabase: <span className="font-mono">{o.segredos}</span>
+                {o.valor === "openwa" ? "Configuração: " : "Segredos no Supabase: "}
+                <span className={o.valor === "openwa" ? "" : "font-mono"}>{o.segredos}</span>
               </p>
             </button>
           );
@@ -99,6 +101,8 @@ export default function WhatsAppConfig() {
       </div>
 
       {msg && <p className="mt-3 text-sm font-medium text-aco-600">{salvando ? "Salvando..." : msg}</p>}
+
+      {isAdmin && provedor === "openwa" && <ConexaoOpenWA />}
 
       <div className="mt-5 flex items-start gap-2 rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
         <MessageCircle size={18} className="mt-0.5 flex-shrink-0 text-aco-500" />
@@ -109,7 +113,7 @@ export default function WhatsAppConfig() {
             Trocar o provedor vale na hora, sem mexer no código. {isAdmin ? "" : "Só o administrador pode trocar."}
           </p>
           <p className="mt-2 text-xs text-slate-500">
-            Para recebimento, cadastre o webhook do provedor apontando para a função <span className="font-mono">receber-whatsapp</span>.
+            No OpenWA, o recebimento é configurado sozinho quando você conecta o número. No oficial, cadastre o webhook apontando para a função <span className="font-mono">receber-whatsapp</span>.
           </p>
         </div>
       </div>
