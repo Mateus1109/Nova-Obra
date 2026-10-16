@@ -11,6 +11,7 @@ import {
   ThumbsDown,
   Trash2,
   Users,
+  MessageCircle,
   type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -26,6 +27,7 @@ import MotivosPerda from "./config/MotivosPerda";
 import Listas from "./config/Listas";
 import CamposAdicionais from "./config/CamposAdicionais";
 import Lixeira from "./config/Lixeira";
+import WhatsAppConfig from "./config/WhatsAppConfig";
 
 type Acesso = { isAdmin: boolean; pode: ReturnType<typeof useAuth>["pode"] };
 
@@ -51,6 +53,7 @@ const SECOES: Secao[] = [
   { key: "motivos-perda", label: "Motivos de perda", desc: "Por que os negócios são perdidos", icon: ThumbsDown, Componente: MotivosPerda, acesso: soAdmin },
   { key: "listas", label: "Listas", desc: "Opções de origem e segmento", icon: ListChecks, Componente: Listas, acesso: soAdmin },
   { key: "campos-adicionais", label: "Campos adicionais", desc: "Campos extras de leads e negócios", icon: TextCursorInput, Componente: CamposAdicionais, acesso: soAdmin },
+  { key: "whatsapp", label: "WhatsApp", desc: "Provedor de envio: OpenWA ou oficial da Meta", icon: MessageCircle, Componente: WhatsAppConfig, acesso: soAdmin },
   { key: "lixeira", label: "Lixeira", desc: "Restaurar ou apagar negócios excluídos", icon: Trash2, Componente: Lixeira, acesso: (a) => a.isAdmin || (a.pode("excluir_obras") && a.pode("mover_funil")) },
 ];
 
