@@ -437,3 +437,48 @@ export const RESULTADO_VISITA: Record<ResultadoVisita, { label: string; bg: stri
   retornar: { label: "Retornar depois", bg: "#fef3c7", fg: "#b45309" },
   sem_interesse: { label: "Sem interesse", bg: "#fee2e2", fg: "#b91c1c" },
 };
+
+/* ---------- Chat / Multiatendimento ---------- */
+export type StatusConversa = "aberto" | "finalizado" | "oculto";
+export type DirecaoMsg = "entra" | "sai" | "nota";
+export type TipoMsg = "texto" | "imagem" | "audio" | "video" | "documento";
+export type StatusMsg = "agendada" | "enviando" | "enviada" | "entregue" | "lida" | "erro";
+
+export interface Departamento {
+  id: string;
+  nome: string;
+  ordem: number;
+  criado_em: string;
+}
+
+export interface Conversa {
+  id: string;
+  lead_id: string;
+  atendente_id: string | null;
+  departamento_id: string | null;
+  status: StatusConversa;
+  protocolo: number;
+  conexao: string;
+  nao_lidas: number;
+  ultima_msg: string;
+  ultima_msg_em: string;
+  criado_em: string;
+  atualizado_em: string;
+  lead?: Lead | null;
+}
+
+export interface Mensagem {
+  id: string;
+  conversa_id: string;
+  lead_id: string | null;
+  direcao: DirecaoMsg;
+  tipo: TipoMsg;
+  texto: string;
+  midia_url: string | null;
+  midia_nome: string | null;
+  status: StatusMsg;
+  wa_id: string | null;
+  atendente_id: string | null;
+  agendada_para: string | null;
+  criado_em: string;
+}

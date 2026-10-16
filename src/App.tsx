@@ -6,6 +6,7 @@ import Login from "./pages/Login";
 import Kanban from "./pages/Kanban";
 import Aguardando from "./pages/Aguardando";
 import Leads from "./pages/Leads";
+import Conversas from "./pages/Conversas";
 import Relatorios from "./pages/Relatorios";
 import Dashboard from "./pages/Dashboard";
 import Configuracoes from "./pages/Configuracoes";
@@ -33,6 +34,7 @@ function Protegido() {
                 <Route path="/" element={<Navigate to="/pipelines" replace />} />
                 <Route path="/pipelines/:pipelineId?" element={<Kanban />} />
                 <Route path="/leads" element={<Leads />} />
+                <Route path="/conversas" element={<Conversas />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/configuracoes/:secao?" element={<Configuracoes />} />
                 <Route path="/equipe" element={<Navigate to="/configuracoes/membros" replace />} />

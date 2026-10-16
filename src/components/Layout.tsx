@@ -5,6 +5,7 @@ import {
   BarChart3,
   Users,
   ClipboardList,
+  MessageCircle,
   LogOut,
   KeyRound,
   UserCog,
@@ -33,6 +34,7 @@ const nav: {
 }[] = [
   { to: "/pipelines", label: "Pipelines", icon: Filter },
   { to: "/leads", label: "Leads", icon: Users },
+  { to: "/conversas", label: "Conversas", icon: MessageCircle },
   { to: "/relatorios", label: "Relatórios de visita", icon: ClipboardList },
   { to: "/dashboard", label: "Dashboard", icon: BarChart3, perm: "ver_painel" },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
@@ -62,6 +64,27 @@ function usePendentes(ativo: boolean) {
   return qtd;
 }
 
+/** Total de mensagens não lidas nas conversas visíveis (para o selinho do menu) */
+function useNaoLidas() {
+  const [qtd, setQtd] = useState(0);
+  useEffect(() => {
+    const contar = async () => {
+      const { data } = await supabase.from("conversas").select("nao_lidas").eq("status", "aberto").limit(500);
+      setQtd((data ?? []).reduce((s, c) => s + (c.nao_lidas ?? 0), 0));
+    };
+    contar();
+    const ch = supabase
+      .channel("naolidas-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "conversas" }, contar)
+      .on("postgres_changes", { event: "*", schema: "public", table: "mensagens" }, contar)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, []);
+  return qtd;
+}
+
 function Logo() {
   return (
     <div className="grid h-9 w-9 place-items-center rounded-lg bg-aco-500 text-lg font-black text-white" title="Megamix · Nova Obra">
@@ -75,6 +98,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const loc = useLocation();
   const itens = nav.filter((n) => (n.adminOnly ? isAdmin : !n.perm || pode(n.perm)));
   const pendentes = usePendentes(isAdmin);
+  const naoLidas = useNaoLidas();
   const [senhaAberta, setSenhaAberta] = useState(false);
   const [painelAberto, setPainelAberto] = useState(true);
   const noPipeline = loc.pathname === "/" || loc.pathname.startsWith("/pipelines");
@@ -103,6 +127,11 @@ export default function Layout({ children }: { children: ReactNode }) {
               {n.to === "/configuracoes" && pendentes > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-marinho-900">
                   {pendentes}
+                </span>
+              )}
+              {n.to === "/conversas" && naoLidas > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-green-500 px-1 text-[0.625rem] font-bold text-white">
+                  {naoLidas > 99 ? "99+" : naoLidas}
                 </span>
               )}
             </NavLink>
@@ -173,6 +202,11 @@ export default function Layout({ children }: { children: ReactNode }) {
             {n.to === "/configuracoes" && pendentes > 0 && (
               <span className="absolute right-[calc(50%-18px)] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-400 px-1 text-[0.625rem] font-bold text-marinho-900">
                 {pendentes}
+              </span>
+            )}
+            {n.to === "/conversas" && naoLidas > 0 && (
+              <span className="absolute right-[calc(50%-18px)] top-1 grid h-4 min-w-4 place-items-center rounded-full bg-green-500 px-1 text-[0.625rem] font-bold text-white">
+                {naoLidas > 99 ? "99+" : naoLidas}
               </span>
             )}
           </NavLink>
